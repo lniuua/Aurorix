@@ -13,6 +13,10 @@ lib/assets/providers/*.zip
 node_modules/
 aurorix
 /aurx
+# Windows 构建产物
+*.exe
+*.exe~
+*.test
 # 前端产物入库(不再忽略): lib/admin 用 //go:embed dist, 产物不在库里的话别人 go get 下来编不过。
 
 # 插件:官方示例入库, 个人/生态插件目录永不追踪
@@ -21,6 +25,8 @@ plugins/*
 !plugins/echo/
 !plugins/imagegen/
 !plugins/uptime/
+!plugins/kurocos/
+!plugins/gscore/
 
 # markdown:现有文档入库,新增默认忽略
 *.md
