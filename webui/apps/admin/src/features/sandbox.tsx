@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Bot, SlidersHorizontal, Trash2, User } from 'lucide-react'
@@ -7,6 +7,7 @@ import { PageHeader } from '../components/layout'
 import { ZoomImage } from '../components/lightbox'
 import { get, post, withQuery } from '../lib/api'
 import { useUIConfig } from '../lib/background'
+import { useStickToBottom } from '../lib/stick-to-bottom'
 import { toast } from '../lib/toast'
 import type { SandboxMessage, SandboxPollView, SandboxReply } from '../lib/types'
 
@@ -98,12 +99,8 @@ export default function SandboxPage() {
   const [turns, setTurns] = useState<Turn[]>([])
   const [pending, setPending] = useState(false)
   const [advanced, setAdvanced] = useState(false)
-  const scroller = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const box = scroller.current
-    if (box) box.scrollTop = box.scrollHeight
-  }, [turns, pending])
+  // 新的提问、机器人回复、正在处理… 任一变化都尝试贴底；用户上滚看历史时自动暂停
+  const { ref: scrollerRef } = useStickToBottom<HTMLDivElement>([turns, pending])
 
   // 指令是异步执行的: 轮询取回回复。done 只代表框架指令跑完, 适配器(gscore)的回复可能晚很多。
   const pollReplies = async (session: string, turnId: number, start = 0) => {
@@ -187,7 +184,7 @@ export default function SandboxPage() {
                 { value: 'member', label: '成员' },
                 { value: 'admin', label: '管理员' },
                 { value: 'owner', label: '群主' },
-                { value: 'bot_owner', label: '机器人主人' },
+                { value: 'bot_owner', label: '主人' },
               ]}
             />
             <button
@@ -223,7 +220,7 @@ export default function SandboxPage() {
           )}
         </div>
 
-        <div ref={scroller} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+        <div ref={scrollerRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           {turns.length === 0 ? (
             <div className="m-auto max-w-md text-center text-[12.5px] leading-relaxed text-ink-faint">
               输入指令试试吧

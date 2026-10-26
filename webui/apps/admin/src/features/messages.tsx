@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Markdown from 'react-markdown'
@@ -7,6 +7,7 @@ import { Button, Spinner, cn } from '@aurorix/webui'
 import { get, post, withQuery } from '../lib/api'
 import { ZoomImage } from '../components/lightbox'
 import { qk } from '../lib/query'
+import { useStickToBottom } from '../lib/stick-to-bottom'
 import { useOverview } from '../components/layout'
 import type { InboxConversation, InboxMessage, InboxMessagesView } from '../lib/types'
 
@@ -91,14 +92,14 @@ function Bubble({ msg, appid, botAvatar }: { msg: InboxMessage; appid: string; b
       ) : (
         <span className="-mt-2 size-8 shrink-0 rounded-full border border-line bg-subtle" />
       )}
-      <div className={cn('flex max-w-[min(680px,85%)] flex-col gap-1', mine ? 'items-end' : 'items-start')}>
+      <div className={cn('flex min-w-0 max-w-[min(680px,85%)] flex-col gap-1', mine ? 'items-end' : 'items-start')}>
         <div className="flex items-center gap-2 px-1 text-[11px] text-ink-faint">
           <span className="max-w-[180px] truncate">{mine ? '机器人' : senderLabel(msg)}</span>
           <span>{clock(msg.created_at)}</span>
         </div>
         <div
           className={cn(
-            'rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed',
+            'max-w-full rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed [overflow-wrap:anywhere]',
             mine ? 'bg-accent-soft text-ink' : 'bg-surface text-ink',
           )}
         >
@@ -127,7 +128,6 @@ export default function MessagesPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [error, setError] = useState('')
-  const scroller = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
   const { data: overview } = useOverview()
   const appid = overview?.profile?.appid ?? ''
@@ -148,7 +148,11 @@ export default function MessagesPage() {
 
   const latest = current.data?.messages ?? []
   const all = useMemo(() => [...older, ...latest], [older, latest])
-
+  // 每次拿到新数据都尝试贴底；用户主动上滚看历史时 hook 会自动暂停跟随。
+  const { ref: scrollerRef, node: scroller, stick } = useStickToBottom<HTMLDivElement>([
+    all.length,
+    active,
+  ])
   const filtered = useMemo(() => {
     const list = conversations.data?.conversations ?? []
     const needle = search.trim().toLowerCase()
@@ -167,7 +171,9 @@ export default function MessagesPage() {
     setOlder([])
     setHasMore(false)
     setError('')
-  }, [active])
+    // 切会话后重新跟随最新，否则上一个会话里上滚过的状态会阻断自动贴底
+    stick()
+  }, [active, stick])
 
   // 宽屏右侧本来就要占一块, 空着等于把输入框藏起来; 直接进第一个会话。
   // 窄屏反过来 —— 那里列表才是首屏, 自动跳走会让用户看不见列表。
@@ -183,8 +189,6 @@ export default function MessagesPage() {
   useEffect(() => {
     if (current.data && latest.length > 0 && older.length === 0) {
       setHasMore(current.data.has_more)
-      const box = scroller.current
-      if (box) box.scrollTop = box.scrollHeight
     }
   }, [current.data, latest.length, older.length])
 
@@ -195,8 +199,7 @@ export default function MessagesPage() {
       setError('')
       await queryClient.invalidateQueries({ queryKey: qk.inboxMessages(active) })
       await queryClient.invalidateQueries({ queryKey: qk.inboxConversations })
-      const box = scroller.current
-      if (box) box.scrollTop = box.scrollHeight
+      stick()
     },
     onError: (err) => setError(err instanceof Error ? err.message : '发送失败'),
   })
@@ -205,7 +208,7 @@ export default function MessagesPage() {
     const anchor = older[0] ?? latest[0]
     if (!anchor || loadingOlder) return
     setLoadingOlder(true)
-    const box = scroller.current
+    const box = scroller
     const heightBefore = box?.scrollHeight ?? 0
     try {
       const view = await get<InboxMessagesView>(
@@ -318,7 +321,7 @@ export default function MessagesPage() {
                 </div>
               </header>
 
-              <div ref={scroller} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+              <div ref={scrollerRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
                 {hasMore && (
                   <div className="flex justify-center">
                     <Button variant="ghost" onClick={loadOlder} disabled={loadingOlder}>

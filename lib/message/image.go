@@ -108,12 +108,23 @@ func (msg *ImageMessage) sendMedia() error {
 
 func (msg *ImageMessage) sendMediaWithID() (string, error) {
 	up := MediaUploadFor(1, msg.Src, msg.Summary)
+	// 本地/字节图片强制走分片上传: QQ 只有分片才回 raw_url,
+	// 内联上传只给 file_info, 存档里就没法展示了。
+	if len(up.Data) > 0 {
+		up.ForceChunked = true
+	}
 	res, err := msg.Qapi.Files.UploadMediaEx(msg.Target, msg.GroupId, msg.UserId, up)
 	if err != nil {
 		return "", err
 	}
-	if res.RawURL != "" {
+	switch {
+	case res.RawURL != "":
 		msg.Message.MediaURL = res.RawURL
+	case up.URL != "":
+		// 直接给的是公网直链, 存这个就够了。
+		msg.Message.MediaURL = up.URL
+	default:
+		msg.Message.MediaURL = officialMediaURL(msg.Qapi.AppID, res.FileUUID)
 	}
 	msg.Message.MediaDesc = "[图片]"
 	media := &MediaMessage{Message: msg.Message, Media: MediaContent{FileInfo: res.FileInfo}}

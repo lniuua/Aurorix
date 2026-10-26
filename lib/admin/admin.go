@@ -83,6 +83,13 @@ func Register(mux *http.ServeMux, deps Deps) {
 	api.HandleFunc("POST /admin/api/jobs/{id}/pause", handleJobPause)
 	api.HandleFunc("GET /admin/api/config", handleGetConfig)
 	api.HandleFunc("PUT /admin/api/config", handlePutConfig(deps))
+	api.HandleFunc("GET /admin/api/db/tables", handleDBTables)
+	api.HandleFunc("GET /admin/api/db/tables/{table}", handleDBTable)
+	api.HandleFunc("GET /admin/api/db/tables/{table}/rows", handleDBRows)
+	api.HandleFunc("POST /admin/api/db/tables/{table}/rows", handleDBInsertRow)
+	api.HandleFunc("PUT /admin/api/db/tables/{table}/rows", handleDBUpdateRow)
+	api.HandleFunc("DELETE /admin/api/db/tables/{table}/rows", handleDBDeleteRow)
+	api.HandleFunc("POST /admin/api/db/query", handleDBQuery)
 	api.HandleFunc("POST /admin/api/system/restart", func(w http.ResponseWriter, r *http.Request) {
 		if !deps.Control.Supervised {
 			writeJSON(w, http.StatusConflict, H{"error": "未声明受外部守护(AURORIX_SUPERVISED=1), 面板重启会与守护进程各拉一个实例互杀; 请手动重启或在受管模式下使用"})

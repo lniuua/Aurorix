@@ -46,9 +46,18 @@ export interface Counters {
 
 export interface MemView {
   heap_alloc: number
+  heap_inuse?: number
+  heap_idle?: number
+  heap_released?: number
   heap_sys: number
+  heap_objects?: number
   num_gc: number
+  pause_total_ms?: number
   last_gc: number
+  /** 生效的堆内存软上限（GOMEMLIMIT），0 表示未设。 */
+  limit_bytes?: number
+  /** 生效的 GOGC，-1 表示已关闭。 */
+  gc_percent?: number
 }
 
 export interface RuntimeView {
@@ -120,11 +129,43 @@ export interface AssetsSummary {
   whitelist: number
 }
 
+/** 整机与进程资源占用(2 秒采样一次)。 */
+export interface SysLoad {
+  cpu_percent: number
+  mem_used: number
+  mem_total: number
+  proc_cpu_percent: number
+  proc_rss: number
+  disk_used: number
+  disk_total: number
+  disk_path: string
+  net_rx_rate: number
+  net_tx_rate: number
+  net_rx_total: number
+  net_tx_total: number
+  /** 1 分钟平均负载，-1 表示该平台不提供（Windows）。 */
+  load1: number
+  sys_uptime_sec: number
+}
+
+/** 主机静态信息，进程启动后只算一次。 */
+export interface HostInfo {
+  hostname: string
+  os: string
+  arch: string
+  pid: number
+  cpu_cores: number
+  cwd: string
+  executable: string
+}
+
 export interface Overview {
   runtime: RuntimeView
   counts: CountsView
   logs: LogCountsView
   stats: StatsView
+  system?: SysLoad
+  host?: HostInfo
   gateway?: GatewayStatus | null
   profile?: BotProfile | null
   assets?: AssetsSummary
@@ -227,6 +268,8 @@ export interface UIConfig {
   logo?: string
   background?: string
   background_opacity?: number
+  /** 是否按背景图自动取主题色；省略视为开启。 */
+  auto_theme?: boolean
 }
 
 export interface ConfigView {
@@ -373,6 +416,57 @@ export interface MenuSnapshot {
 export interface MenuSnapshots {
   snapshots: MenuSnapshot[]
   dir: string
+}
+
+/** ---- 数据库管理 ---- */
+
+export interface DBTable {
+  name: string
+  rows: number
+}
+
+export interface DBColumn {
+  name: string
+  type: string
+  not_null: boolean
+  default: string | null
+  /** 主键顺序，0 表示不是主键。 */
+  pk: number
+}
+
+export interface DBTableView {
+  name: string
+  columns: DBColumn[]
+  pk: string[]
+  /** 没有主键的表不可编辑：定位不到唯一的行。 */
+  editable: boolean
+  rows: number
+}
+
+/** 行数据按列顺序返回，值可能是 string / number / null。 */
+export type DBValue = string | number | null
+
+export interface DBRowsView {
+  table: string
+  columns: string[]
+  rows: DBValue[][]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface DBWriteResult {
+  ok: boolean
+  affected?: number
+  last_insert_id?: number
+}
+
+export interface DBQueryResult {
+  kind: 'rows' | 'exec'
+  columns?: string[]
+  rows?: DBValue[][]
+  affected?: number
+  elapsed_ms: number
 }
 
 export interface PanelWriteResult {

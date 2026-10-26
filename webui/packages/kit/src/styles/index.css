@@ -22,12 +22,12 @@
   --ink-soft: #57534e;
   --ink-faint: #a8a29e;
 
-  /* 主色 */
-  --accent: #292524;
-  --accent-hover: #5f7050;
+  /* 主色：石青/黛蓝，与米白纸底形成“墨与纸”的对比 */
+  --accent: #2f3b45;
+  --accent-hover: #4a6b7c;
   --accent-ink: #faf6f1;
-  --accent-soft: #e6e6db;
-  --accent-text: #5f7050;
+  --accent-soft: #e3e8eb;
+  --accent-text: #4a6b7c;
 
   /* 状态：fill 用于实心块与色点，ink 是块上文字，text 是浅色底上的可读文字 */
   --danger: #a4553c;
@@ -37,11 +37,11 @@
   --warn: #d4a373;
   --warn-ink: #292524;
   --warn-text: #8a5a2b;
-  --ok: #6b7a4f;
+  --ok: #4f7d63;
   --ok-ink: #faf6f1;
-  --ok-text: #5f7050;
+  --ok-text: #3f6f57;
 
-  --focus: #a8a29e;
+  --focus: #a9b1b7;
 }
 
 .dark {
@@ -58,11 +58,11 @@
   --ink-soft: #c8bfb6;
   --ink-faint: #8d837a;
 
-  --accent: #f4efe8;
-  --accent-hover: #8b9d77;
+  --accent: #eef1f3;
+  --accent-hover: #9db8c6;
   --accent-ink: #1b1815;
-  --accent-soft: #343a2e;
-  --accent-text: #8b9d77;
+  --accent-soft: #2b343b;
+  --accent-text: #93b0c0;
 
   --danger: #b8603f;
   --danger-hover: #c97a55;
@@ -71,11 +71,11 @@
   --warn: #d4a373;
   --warn-ink: #1b1815;
   --warn-text: #e0b98c;
-  --ok: #7d8f5c;
+  --ok: #5f8f74;
   --ok-ink: #1b1815;
-  --ok-text: #a8bd92;
+  --ok-text: #8dbba1;
 
-  --focus: #6b625a;
+  --focus: #5f6b73;
 }
 
 /* inline 让工具类直接引用变量, .dark 覆盖即可级联生效 */

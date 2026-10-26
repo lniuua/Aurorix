@@ -143,6 +143,8 @@ type UIConfig struct {
 	Logo              string `json:"logo,omitempty"`               // 登录页与侧边栏 Logo 图 URL，留空用默认字标
 	Background        string `json:"background,omitempty"`         // 全屏背景图 URL，留空关闭
 	BackgroundOpacity int    `json:"background_opacity,omitempty"` // 1-100，0 视为默认 30
+	// AutoTheme 为是否取背景图主色作为主题色；省略(省略号)视为开启。
+	AutoTheme *bool `json:"auto_theme,omitempty"`
 }
 
 type TemplatesConfig struct {

@@ -34,13 +34,13 @@ const ROLE_OPTIONS = [
   { value: 'member', label: '所有人' },
   { value: 'admin', label: '管理员' },
   { value: 'owner', label: '群主' },
-  { value: 'bot_owner', label: '机器人主人' },
+  { value: 'bot_owner', label: '主人' },
 ]
 
 const EMPTY_RULE: AccessRule = { mode: 'off', users: [], groups: [] }
 
 const ROLE_META: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' | 'neutral' }> = {
-  bot_owner: { label: '机器人主人', tone: 'danger' },
+  bot_owner: { label: '主人', tone: 'danger' },
   owner: { label: '群主', tone: 'warn' },
   admin: { label: '管理员', tone: 'ok' },
   member: { label: '所有人', tone: 'neutral' },

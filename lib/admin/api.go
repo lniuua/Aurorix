@@ -32,6 +32,8 @@ func overviewSnapshot(deps Deps) H {
 			"errors": logx.Errors(),
 		},
 		"stats":   stats.Snapshot(),
+		"system":  state.SysLoadSnapshot(),
+		"host":    state.HostSnapshot(),
 		"control": H{"supervised": deps.Control.Supervised},
 	}
 	if deps.Profile != nil {

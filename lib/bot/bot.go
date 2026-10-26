@@ -59,6 +59,8 @@ func Run() {
 	appConfig := config.InitConfig()
 	logx.Open(logx.Options{Ring: logx.DefaultRing, Level: appConfig.LogLevel})
 	logger.Infof("运行时内存参数: %s", state.ApplyMemoryLimits(appConfig.MemoryLimitMB, appConfig.GCPercent))
+	// 整机 CPU/内存占用常驻采样, 概览页只读最近一次结果。
+	state.StartSysSampler(2 * time.Second)
 	if err := ensureSingleInstance(appConfig.Port); err != nil {
 		logger.Errorf("单实例检查失败: %v", err)
 		os.Exit(1)

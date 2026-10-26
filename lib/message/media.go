@@ -5,10 +5,22 @@ import (
 	"github.com/KasumiYuku/Aurorix/lib/api"
 	"github.com/KasumiYuku/Aurorix/lib/assets"
 	"github.com/KasumiYuku/Aurorix/lib/constant"
+	"net/url"
 	"os"
 	"path"
 	"strings"
 )
+
+// officialMediaURL 用 file_uuid 拼官方富媒体直链。
+// 上传接口不一定返回 raw_url, 但 file_uuid 一定有; 这个地址就是接收方
+// 收到的 attachments[].url 的同款格式。
+func officialMediaURL(appID, fileUUID string) string {
+	if appID == "" || fileUUID == "" {
+		return ""
+	}
+	return "https://multimedia.nt.qq.com.cn/download?appid=" + url.QueryEscape(appID) +
+		"&fileid=" + url.QueryEscape(fileUUID) + "&spec=0"
+}
 
 // MediaMessage 已上传媒体（file_info 已知），直接发送。
 type MediaMessage struct {
@@ -78,6 +90,8 @@ func (msg *UploadMessage) SendWithID() (string, error) {
 	}
 	if res.RawURL != "" {
 		msg.Message.MediaURL = res.RawURL
+	} else {
+		msg.Message.MediaURL = officialMediaURL(msg.Qapi.AppID, res.FileUUID)
 	}
 	msg.Message.MediaDesc = mediaDesc(msg.FileType)
 	media := &MediaMessage{Message: msg.Message, Media: MediaContent{FileInfo: res.FileInfo}}

@@ -47,6 +47,17 @@ func shardKey(send *MessageSend) string {
 	return "p:" + send.TargetID
 }
 
+// backlog 返回当前待投递的消息条数（不含在途那条），供控制台展示积压情况。
+func (p *deliverPool) backlog() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := 0
+	for _, sh := range p.shards {
+		n += len(sh.queue)
+	}
+	return n
+}
+
 // submit 入队一条下行消息。只做「查 shard + 追加」，O(1) 且不阻塞 socket 读取。
 func (p *deliverPool) submit(send *MessageSend) {
 	key := shardKey(send)

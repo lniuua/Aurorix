@@ -9,3 +9,25 @@
     font-size: 16px;
   }
 }
+
+/* 启用壁纸时把表面色换成半透明版本，让背景图能透出来；
+   否则页面里的 bg-background / bg-surface 纯色容器会把壁纸完全挡住。 */
+html.wallpaper {
+  --background: rgb(250 246 241 / 0.55);
+  --surface: rgb(255 255 255 / 0.72);
+  --subtle: rgb(243 237 230 / 0.6);
+}
+
+html.dark.wallpaper {
+  --background: rgb(27 24 21 / 0.55);
+  --surface: rgb(36 31 28 / 0.72);
+  --subtle: rgb(47 41 37 / 0.6);
+}
+
+/* 移动端侧边栏是浮在内容上的抽屉, 必须用实心底色, 否则会和页面内容叠在一起看不清。 */
+:root {
+  --nav-solid: #ffffff;
+}
+.dark {
+  --nav-solid: #241f1c;
+}

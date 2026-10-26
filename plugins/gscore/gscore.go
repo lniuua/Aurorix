@@ -37,6 +37,7 @@ func init() {
 		Commands:    commands,
 		Config:      configFields(),
 		ApplyConfig: applyConfig,
+		WebUI:       webUI(),
 	})
 
 	event.On(constant.GROUP_AT_MESSAGE_CREATE, onGroupAtMessage)

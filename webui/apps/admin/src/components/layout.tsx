@@ -5,6 +5,7 @@ import { Button, ThemeSwitch, cn } from '@aurorix/webui'
 import {
   Clock,
   Command,
+  Database,
   ExternalLink,
   FlaskConical,
   Image as ImageIcon,
@@ -37,6 +38,7 @@ const NAV = [
   { to: '/plugins', label: '插件', icon: Package },
   { to: '/assets', label: '图床', icon: ImageIcon },
   { to: '/jobs', label: '定时任务', icon: Clock },
+  { to: '/database', label: '数据库', icon: Database },
   { to: '/settings', label: '设置', icon: SlidersHorizontal },
 ]
 
@@ -159,8 +161,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-[244px] shrink-0 flex-col border-r border-line bg-surface px-4 py-5 transition-transform duration-200',
-          'md:static md:z-auto md:translate-x-0 md:bg-surface/60',
+          'fixed inset-y-0 left-0 z-40 flex w-[244px] shrink-0 flex-col border-r border-line bg-[var(--nav-solid)] px-4 py-5 shadow-lg transition-transform duration-200',
+          'md:static md:z-auto md:translate-x-0 md:bg-surface/60 md:shadow-none',
           navOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >

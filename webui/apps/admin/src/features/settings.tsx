@@ -17,9 +17,10 @@ import {
   Switch,
   Textarea,
 } from '@aurorix/webui'
-import { RotateCw, Save, TriangleAlert } from 'lucide-react'
+import { RotateCw, Save, TriangleAlert, Undo2 } from 'lucide-react'
 import { PageHeader } from '../components/layout'
 import { AccessEditor } from '../components/access-editor'
+import { FloatingActions } from '../components/floating-actions'
 import { get, post, put } from '../lib/api'
 import { qk, queryClient } from '../lib/query'
 import { toast } from '../lib/toast'
@@ -119,6 +120,16 @@ function widget(field: CoreField, value: unknown, onChange: (next: unknown) => v
               onChange={(e) => patch({ background_opacity: Number(e.target.value) })}
               className="w-full accent-accent"
             />
+          </div>
+          <div className="md:col-span-2">
+            <Switch
+              checked={ui.auto_theme !== false}
+              onChange={(next) => patch({ auto_theme: next })}
+              label="按背景图自动配色"
+            />
+            <p className="mt-1 text-[11px] text-ink-soft">
+              从背景图里提取主色，同时替换强调色与背景/表面/文字这组基色；图片所在站需要允许跨域访问，否则自动退回默认配色。
+            </p>
           </div>
         </div>
       )
@@ -323,6 +334,22 @@ export default function SettingsPage() {
         danger
         pending={restarting}
       />
+
+      {/* 右下角常驻保存：改完不用再滚回顶部 */}
+      {changed > 0 && (
+        <>
+          <div aria-hidden className="h-12 md:h-10" />
+          <FloatingActions>
+            <span className="mr-1 text-xs text-ink-soft">{changed} 项待保存</span>
+            <Button variant="ghost" size="sm" icon={Undo2} onClick={() => setDraft({})}>
+              撤销
+            </Button>
+            <Button size="sm" icon={Save} loading={saving} onClick={save}>
+              保存
+            </Button>
+          </FloatingActions>
+        </>
+      )}
     </>
   )
 }

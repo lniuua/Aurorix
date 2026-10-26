@@ -139,7 +139,7 @@ func (s *Store) Save(m Message) error {
 		   last_preview = CASE
 		     WHEN excluded.last_at >= inbox_conversations.last_at THEN excluded.last_preview
 		     ELSE inbox_conversations.last_preview END`,
-		m.ConvID, string(m.Kind), at, preview(m.Content),
+		m.ConvID, string(m.Kind), at, previewOf(m),
 	); err != nil {
 		return err
 	}
@@ -330,4 +330,24 @@ func preview(content string) string {
 		return string(runes[:previewRunes]) + "…"
 	}
 	return text
+}
+
+// previewOf 生成会话列表的一行摘要: 正文优先, 纯媒体消息退回 [图片]/[视频] 这类占位。
+func previewOf(m Message) string {
+	if text := preview(m.Content); text != "" {
+		return text
+	}
+	for _, a := range m.Attachments {
+		switch {
+		case strings.HasPrefix(a.ContentType, "image/"):
+			return "[图片]"
+		case strings.HasPrefix(a.ContentType, "video/"):
+			return "[视频]"
+		case strings.HasPrefix(a.ContentType, "audio/"):
+			return "[语音]"
+		default:
+			return "[文件]"
+		}
+	}
+	return ""
 }

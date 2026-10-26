@@ -62,6 +62,8 @@ export const get = <T>(path: string) => request<T>('GET', path)
 export const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body)
 export const put = <T>(path: string, body: unknown) => request<T>('PUT', path, body)
 export const del = <T>(path: string) => request<T>('DELETE', path)
+/** 带请求体的 DELETE（删除一行需要主键，放在 body 里比塞 query 干净）。 */
+export const delWith = <T>(path: string, body: unknown) => request<T>('DELETE', path, body)
 
 /** 组装带查询参数的路径，空值一律省略。 */
 export function withQuery(path: string, params: Record<string, string | number | undefined>): string {

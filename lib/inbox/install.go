@@ -115,16 +115,48 @@ func (h *handler) outbound(sent message.SentMessage) {
 	if sent.Target == constant.GroupMessage {
 		kind, convID = KindGroup, sent.GroupID
 	}
-	if convID == "" || sent.Body == "" {
+	if convID == "" {
 		return
 	}
+	// 媒体消息没有正文字段; 即使拿不到直链, 也要留一条占位记录。
+	if sent.Body == "" && sent.MediaURL == "" && sent.MediaDesc == "" {
+		return
+	}
+
+	content := sent.Body
+	var attachments []message.Attachment
+	if sent.MediaURL != "" {
+		attachments = append(attachments, message.Attachment{
+			ContentType: mediaContentType(sent.MediaDesc),
+			URL:         sent.MediaURL,
+		})
+	}
+	// 有附件时正文留空, 前端就只渲染图片/视频; 没有附件才退回占位文字,
+	// 否则界面上会出现一条 "[图片]" 的纯文本。
+	if content == "" && len(attachments) == 0 {
+		content = sent.MediaDesc
+	}
 	h.save(Message{
-		ConvID:     convID,
-		Kind:       kind,
-		Direction:  Outbound,
-		Content:    sent.Body,
-		PlatformID: sent.MsgID,
+		ConvID:      convID,
+		Kind:        kind,
+		Direction:   Outbound,
+		Content:     content,
+		Attachments: attachments,
+		PlatformID:  sent.MsgID,
 	})
+}
+
+// mediaContentType 把媒体占位描述翻成 MIME 大类; 前端按 image/ 前缀决定是否渲染成图。
+func mediaContentType(desc string) string {
+	switch desc {
+	case "[图片]":
+		return "image/png"
+	case "[视频]":
+		return "video/mp4"
+	case "[语音]":
+		return "audio/amr"
+	}
+	return "application/octet-stream"
 }
 
 func (h *handler) save(m Message) {

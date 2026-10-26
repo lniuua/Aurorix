@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gscore 适配器 · 控制台</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #faf6f1;
+        --surface: #ffffff;
+        --subtle: #f3ede6;
+        --line: #e7e5e4;
+        --ink: #292524;
+        --ink-soft: #57534e;
+        --ink-faint: #a8a29e;
+        --accent: #2f3b45;
+        --accent-ink: #faf6f1;
+        --ok: #4f7d63;
+        --danger: #a4553c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --bg: #1b1815;
+          --surface: #241f1c;
+          --subtle: #2f2925;
+          --line: #38312d;
+          --ink: #f4efe8;
+          --ink-soft: #c8bfb6;
+          --ink-faint: #8d837a;
+          --accent: #eef1f3;
+          --accent-ink: #1b1815;
+          --ok: #5f8f74;
+          --danger: #d98a68;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        font-size: 15px;
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 40px 20px 56px;
+      }
+      a {
+        color: inherit;
+      }
+
+      header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .back {
+        display: inline-block;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: var(--ink-faint);
+        text-decoration: none;
+      }
+      .back:hover {
+        color: var(--ink-soft);
+      }
+      h1 {
+        margin: 0;
+        font-family: Georgia, 'Songti SC', serif;
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .sub {
+        margin: 4px 0 0;
+        font-size: 13px;
+        color: var(--ink-soft);
+      }
+
+      button {
+        min-height: 40px;
+        padding: 0 18px;
+        border: 1px solid transparent;
+        border-radius: 9999px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 300ms ease, transform 300ms ease;
+      }
+      button:hover:not(:disabled) {
+        opacity: 0.86;
+      }
+      button:active:not(:disabled) {
+        transform: scale(0.96);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .hero {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px 24px;
+        margin-bottom: 12px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+      }
+      .dot {
+        position: relative;
+        flex-shrink: 0;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--danger);
+      }
+      body[data-state='ok'] .dot {
+        background: var(--ok);
+      }
+      body[data-state='ok'] .dot::after {
+        content: '';
+        position: absolute;
+        inset: -6px;
+        border-radius: 50%;
+        background: var(--ok);
+        opacity: 0.25;
+        animation: breathe 2.4s ease-in-out infinite;
+      }
+      @keyframes breathe {
+        0%,
+        100% {
+          transform: scale(0.7);
+          opacity: 0.28;
+        }
+        50% {
+          transform: scale(1.15);
+          opacity: 0.08;
+        }
+      }
+      .state {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 600;
+      }
+      body[data-state='bad'] .state {
+        color: var(--danger);
+      }
+      .hint {
+        margin: 2px 0 0;
+        font-size: 12.5px;
+        color: var(--ink-soft);
+        word-break: break-all;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        padding: 20px 24px;
+      }
+      .rows {
+        display: grid;
+        gap: 0 32px;
+        margin: 0;
+      }
+      @media (min-width: 640px) {
+        .rows {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .row dt {
+        flex-shrink: 0;
+        font-size: 12px;
+        color: var(--ink-faint);
+      }
+      .row dd {
+        margin: 0;
+        min-width: 0;
+        text-align: right;
+        font-size: 13.5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .row dd.mono {
+        font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-size: 12.5px;
+      }
+
+      .foot {
+        margin: 16px 2px 0;
+        font-size: 11.5px;
+        color: var(--ink-faint);
+      }
+      .foot span {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div>
+          <a class="back" href="/admin/overview">← 返回管理台</a>
+          <h1>gscore 适配器</h1>
+          <p class="sub">与 gsuid_core 的 WebSocket 连接状态</p>
+        </div>
+        <button id="reconnect" type="button">强制重连</button>
+      </header>
+
+      <section class="hero">
+        <span class="dot" aria-hidden></span>
+        <div style="min-width: 0">
+          <p class="state" id="state">读取中…</p>
+          <p class="hint" id="hint">正在获取状态</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <dl class="rows" id="rows"></dl>
+      </section>
+
+      <p class="foot">每 2 秒自动刷新 · 最近刷新 <span id="updated">—</span></p>
+    </div>
+
+    <script>
+      const STATUS = '/gscore/api/status'
+      const RECONNECT = '/gscore/api/reconnect'
+
+      const el = (id) => document.getElementById(id)
+      const esc = (v) =>
+        String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+      let reconnecting = false
+
+      function fmtDur(sec) {
+        if (!Number.isFinite(sec) || sec < 0) return '—'
+        const t = Math.floor(sec)
+        const d = Math.floor(t / 86400)
+        const h = Math.floor((t % 86400) / 3600)
+        const m = Math.floor((t % 3600) / 60)
+        const s = t % 60
+        if (d > 0) return d + ' 天 ' + h + ' 小时'
+        if (h > 0) return h + ' 小时 ' + m + ' 分'
+        if (m > 0) return m + ' 分 ' + s + ' 秒'
+        return s + ' 秒'
+      }
+
+      function fmtAgo(ms, now) {
+        if (!ms) return '—'
+        return fmtDur((now - ms) / 1000) + '前'
+      }
+
+      function fmtTime(ms) {
+        if (!ms) return '—'
+        return new Date(ms).toLocaleString('zh-CN', { hour12: false })
+      }
+
+      function render(data) {
+        const connected = Boolean(data.connected)
+        document.body.dataset.state = connected ? 'ok' : 'bad'
+        el('state').textContent = connected ? '已连接' : '未连接'
+        el('hint').textContent = connected
+          ? '已保持 ' + fmtDur((data.now - data.connected_since_ms) / 1000)
+          : data.last_error
+            ? '最近错误：' + data.last_error
+            : '正在按配置的重连间隔重试'
+
+        const rows = [
+          ['服务地址', data.url || '—', true],
+          ['平台 ID', data.bot_id || '—', true],
+          ['机器人自身 ID', data.bot_self_id || '—', true],
+          ['连接建立于', fmtTime(data.connected_since_ms)],
+          ['最后收包', fmtAgo(data.last_recv_ms, data.now)],
+          ['最后发包', fmtAgo(data.last_send_ms, data.now)],
+          ['累计接收 / 发送', (data.recv_total || 0) + ' / ' + (data.send_total || 0), true],
+          ['连接 / 断开次数', (data.connect_total || 0) + ' / ' + (data.error_total || 0), true],
+          ['投递积压', (data.pending || 0) + ' 条', true],
+        ]
+        el('rows').innerHTML = rows
+          .map(
+            ([label, value, mono]) =>
+              '<div class="row"><dt>' +
+              esc(label) +
+              '</dt><dd' +
+              (mono ? ' class="mono"' : '') +
+              '>' +
+              esc(value) +
+              '</dd></div>',
+          )
+          .join('')
+        el('updated').textContent = fmtTime(data.now)
+      }
+
+      function renderError(message) {
+        document.body.dataset.state = 'bad'
+        el('state').textContent = '状态不可读'
+        el('hint').textContent = message
+      }
+
+      async function refresh() {
+        try {
+          const res = await fetch(STATUS, { credentials: 'same-origin', cache: 'no-store' })
+          if (res.status === 401) {
+            renderError('未登录或登录已过期，请先打开 /admin/ 登录管理台')
+            return
+          }
+          if (!res.ok) throw new Error('HTTP ' + res.status)
+          render(await res.json())
+        } catch (err) {
+          renderError('读取失败：' + (err && err.message ? err.message : err))
+        }
+      }
+
+      el('reconnect').addEventListener('click', async () => {
+        if (reconnecting) return
+        reconnecting = true
+        const btn = el('reconnect')
+        btn.disabled = true
+        btn.textContent = '重连中…'
+        try {
+          const res = await fetch(RECONNECT, { method: 'POST', credentials: 'same-origin' })
+          if (res.status === 401) {
+            renderError('未登录或登录已过期，请先打开 /admin/ 登录管理台')
+            return
+          }
+          if (!res.ok) throw new Error('HTTP ' + res.status)
+          // 拨号是异步的，等一拍再读状态
+          setTimeout(refresh, 900)
+        } catch (err) {
+          el('hint').textContent = '重连失败：' + (err && err.message ? err.message : err)
+        } finally {
+          reconnecting = false
+          btn.disabled = false
+          btn.textContent = '强制重连'
+        }
+      })
+
+      refresh()
+      setInterval(() => {
+        if (!document.hidden) refresh()
+      }, 2000)
+    </script>
+  </body>
+</html>

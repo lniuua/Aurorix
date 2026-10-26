@@ -27,4 +27,7 @@ export const qk = {
   menuSnapshots: ['menu', 'snapshots'] as const,
   inboxConversations: ['inbox', 'conversations'] as const,
   inboxMessages: (conv: string) => ['inbox', 'messages', conv] as const,
+  dbTables: ['db', 'tables'] as const,
+  dbTable: (name: string) => ['db', 'table', name] as const,
+  dbRows: (name: string, page: number, q: string) => ['db', 'rows', name, page, q] as const,
 }

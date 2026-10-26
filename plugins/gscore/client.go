@@ -18,12 +18,21 @@ var adapterLog = logx.New("gscore")
 var errNotConnected = fmt.Errorf("gscore 未连接")
 
 type adapter struct {
-	mu        sync.Mutex // 保护 cfg / conn / connected / lastErr / botAPI
+	mu        sync.Mutex // 保护 cfg / conn / connected / lastErr / botAPI / 统计字段
 	cfg       config
 	conn      *websocket.Conn
 	connected bool
 	lastErr   string
 	botAPI    *api.BotAPI
+
+	// 面板用的统计: 时间点均为零值时表示“从未发生”。
+	connectedAt  time.Time
+	lastRecvAt   time.Time
+	lastSendAt   time.Time
+	recvTotal    uint64
+	sendTotal    uint64
+	connectTotal uint64
+	errorTotal   uint64
 
 	reloadCh chan struct{}
 	writeMu  sync.Mutex // 串行化写与关连接，避免与 gorilla 并发冲突
@@ -162,6 +171,11 @@ func (a *adapter) readLoop(conn *websocket.Conn) {
 			a.setError(err.Error())
 			return
 		}
+		a.mu.Lock()
+		a.lastRecvAt = time.Now()
+		a.recvTotal++
+		a.mu.Unlock()
+
 		var send MessageSend
 		if err := json.Unmarshal(data, &send); err != nil {
 			adapterLog.Warnf("解析 gscore 下行消息失败: %v", err)
@@ -181,7 +195,14 @@ func (a *adapter) send(data []byte) error {
 	if conn == nil {
 		return errNotConnected
 	}
-	return conn.WriteMessage(websocket.BinaryMessage, data)
+	if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.lastSendAt = time.Now()
+	a.sendTotal++
+	a.mu.Unlock()
+	return nil
 }
 
 func (a *adapter) setConn(conn *websocket.Conn) {
@@ -189,6 +210,8 @@ func (a *adapter) setConn(conn *websocket.Conn) {
 	a.conn = conn
 	a.connected = true
 	a.lastErr = ""
+	a.connectedAt = time.Now()
+	a.connectTotal++
 	a.mu.Unlock()
 }
 
@@ -197,6 +220,8 @@ func (a *adapter) setError(err string) {
 	a.conn = nil
 	a.connected = false
 	a.lastErr = err
+	a.connectedAt = time.Time{}
+	a.errorTotal++
 	a.mu.Unlock()
 }
 
@@ -227,4 +252,39 @@ func (a *adapter) statusLine() (url string, connected bool, botID string, lastEr
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.cfg.URL, a.connected, a.cfg.BotID, a.lastErr
+}
+
+// statusSnapshot 是给插件控制台用的连接状态快照。
+type statusSnapshot struct {
+	Connected     bool
+	URL           string
+	BotID         string
+	BotSelfID     string
+	LastError     string
+	ConnectedAt   time.Time
+	LastRecvAt    time.Time
+	LastSendAt    time.Time
+	RecvTotal     uint64
+	SendTotal     uint64
+	ConnectTotal  uint64
+	ErrorTotal    uint64
+}
+
+func (a *adapter) snapshotStatus() statusSnapshot {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return statusSnapshot{
+		Connected:    a.connected,
+		URL:          a.cfg.URL,
+		BotID:        a.cfg.BotID,
+		BotSelfID:    a.cfg.BotSelfID,
+		LastError:    a.lastErr,
+		ConnectedAt:  a.connectedAt,
+		LastRecvAt:   a.lastRecvAt,
+		LastSendAt:   a.lastSendAt,
+		RecvTotal:    a.recvTotal,
+		SendTotal:    a.sendTotal,
+		ConnectTotal: a.connectTotal,
+		ErrorTotal:   a.errorTotal,
+	}
 }

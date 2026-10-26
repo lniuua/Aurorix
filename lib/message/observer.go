@@ -13,6 +13,10 @@ type SentMessage struct {
 	UserID  string
 	Target  constant.MessageOrigin
 	Body    string
+	// MediaURL 媒体上传后平台返回的官方直链; 非媒体消息为空。
+	MediaURL string
+	// MediaDesc 媒体占位描述, 如 [图片]、[视频]。
+	MediaDesc string
 }
 
 var (
@@ -36,11 +40,13 @@ func observeSent(msg *Message, id string) {
 		return
 	}
 	fn(SentMessage{
-		MsgID:   id,
-		GroupID: msg.GroupId,
-		UserID:  msg.UserId,
-		Target:  msg.Target,
-		Body:    bodyOf(msg),
+		MsgID:     id,
+		GroupID:   msg.GroupId,
+		UserID:    msg.UserId,
+		Target:    msg.Target,
+		Body:      bodyOf(msg),
+		MediaURL:  msg.MediaURL,
+		MediaDesc: msg.MediaDesc,
 	})
 }
 

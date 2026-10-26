@@ -52,3 +52,9 @@ export function fmtNum(n: number | undefined): string {
   if (n === undefined || !Number.isFinite(n)) return EMPTY
   return n.toLocaleString('zh-CN')
 }
+
+/** 速率显示：字节每秒。 */
+export function fmtRate(n: number | undefined): string {
+  if (n === undefined || !Number.isFinite(n)) return EMPTY
+  return `${fmtBytes(n)}/s`
+}

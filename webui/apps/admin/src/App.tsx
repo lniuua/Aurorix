@@ -4,12 +4,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@aurorix/webui'
 import { AppShell } from './components/layout'
 import { BackgroundLayer } from './components/background'
+import { AutoTheme } from './components/auto-theme'
 import { Favicon } from './components/favicon'
 import { get, setUnauthorizedHandler } from './lib/api'
 import { connectLive, disconnectLive } from './lib/live'
 import { qk } from './lib/query'
 import type { MeView } from './lib/types'
 import AssetsPage from './features/assets'
+import DatabasePage from './features/database'
 import JobsPage from './features/jobs'
 import LoginPage from './features/login'
 import LogsPage from './features/logs'
@@ -64,6 +66,7 @@ export default function App() {
   return (
     <>
       <BackgroundLayer />
+      <AutoTheme />
       <Favicon />
       <UnauthorizedBridge />
       <Routes>
@@ -92,6 +95,7 @@ export default function App() {
           <Route path="/plugins" element={<PluginsPage />} />
           <Route path="/assets" element={<AssetsPage />} />
           <Route path="/jobs" element={<JobsPage />} />
+          <Route path="/database" element={<DatabasePage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/overview" replace />} />
