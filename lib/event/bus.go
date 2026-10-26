@@ -24,6 +24,7 @@ var (
 	anyHandlers []Handler
 
 	builtinHook BuiltinHook
+	preFilter   func(structers.Payload) bool
 )
 
 // On 订阅事件。
@@ -61,21 +62,33 @@ func OnAny(h func(*Context, Event)) {
 // SetBuiltinHook 注入内置分发钩子, 幂等, 最后一次生效。
 func SetBuiltinHook(h BuiltinHook) { builtinHook = h }
 
-// Ingest 事件入口: 解析 → 订阅者 → 内置分发。未知/解析失败事件不吞, 透传 UnknownEvent。
+// SetPreFilter 注入事件前置过滤: 返回 false 时整条事件直接丢弃(不通知订阅者、也不分发指令)。
+func SetPreFilter(f func(structers.Payload) bool) { preFilter = f }
+
+// Ingest 事件入口: 前置过滤 → 解析 → 订阅者 → 内置分发。未知/解析失败事件不吞, 透传 UnknownEvent。
 func Ingest(payload structers.Payload, client *api.BotAPI) {
+	if preFilter != nil && !preFilter(payload) {
+		return
+	}
 	ev := parse(payload)
 
 	if unknown, ok := ev.(*UnknownEvent); ok {
 		busLog.Warnf("未知事件 %s 已透传, 载荷: %s", unknown.RawType, compact(unknown.RawBody))
 	}
 
-	notify(ev, client)
+	notify(ev, client, false)
 	if builtinHook != nil {
 		builtinHook(payload, client)
 	}
 }
 
-func notify(ev Event, client *api.BotAPI) {
+// Emit 只把事件推给订阅者, 不进内置分发也不进统计 —— 供沙盒这类旁路注入使用。
+// 订阅者按各自的调度策略异步执行, 这里不等它们跑完。
+func Emit(payload structers.Payload, client *api.BotAPI) {
+	notify(parse(payload), client, true)
+}
+
+func notify(ev Event, client *api.BotAPI, sandbox bool) {
 	handlerMu.RLock()
 	subs := append([]Handler{}, handlers[ev.Type()]...)
 	subs = append(subs, anyHandlers...)
@@ -86,6 +99,7 @@ func notify(ev Event, client *api.BotAPI) {
 	for _, h := range subs {
 		h := h
 		ctx := newContext(client, ev)
+		ctx.Sandbox = sandbox
 		dispatchTask(ctx, h, ev)
 	}
 }

@@ -1,2 +1,11 @@
 @import 'tailwindcss';
 @import '@aurorix/webui/styles.css';
+
+/* 移动端：iOS 在输入框字号小于 16px 时会在聚焦瞬间自动放大页面，这里兜一下。 */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

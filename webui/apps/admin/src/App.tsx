@@ -3,6 +3,8 @@ import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@aurorix/webui'
 import { AppShell } from './components/layout'
+import { BackgroundLayer } from './components/background'
+import { Favicon } from './components/favicon'
 import { get, setUnauthorizedHandler } from './lib/api'
 import { connectLive, disconnectLive } from './lib/live'
 import { qk } from './lib/query'
@@ -13,6 +15,7 @@ import LoginPage from './features/login'
 import LogsPage from './features/logs'
 import MenuPage from './features/menu'
 const MessagesPage = lazy(() => import('./features/messages'))
+const SandboxPage = lazy(() => import('./features/sandbox'))
 import OverviewPage from './features/overview'
 import PluginsPage from './features/plugins'
 import SettingsPage from './features/settings'
@@ -60,6 +63,8 @@ function RequireAuth() {
 export default function App() {
   return (
     <>
+      <BackgroundLayer />
+      <Favicon />
       <UnauthorizedBridge />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -76,6 +81,14 @@ export default function App() {
             }
           />
           <Route path="/menu" element={<MenuPage />} />
+          <Route
+            path="/sandbox"
+            element={
+              <Suspense fallback={<Splash />}>
+                <SandboxPage />
+              </Suspense>
+            }
+          />
           <Route path="/plugins" element={<PluginsPage />} />
           <Route path="/assets" element={<AssetsPage />} />
           <Route path="/jobs" element={<JobsPage />} />

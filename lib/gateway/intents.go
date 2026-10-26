@@ -64,3 +64,26 @@ func Intents(events []string) int {
 	}
 	return bits
 }
+
+// IntentDescriptions 事件名 → 说明, 供管理台悬停展示。
+func IntentDescriptions() map[string]string {
+	return map[string]string{
+		"GROUP_AT_MESSAGE_CREATE": "群内 @机器人 的消息",
+		"GROUP_MESSAGE_CREATE":    "群内所有消息（含 @机器人）",
+		"C2C_MESSAGE_CREATE":      "私聊消息",
+		"INTERACTION_CREATE":      "消息按钮点击等互动事件",
+		"GROUP_JOIN_REQUEST":      "入群申请",
+		"GROUP_MEMBER_ADD":        "群成员增加",
+		"GROUP_MEMBER_REMOVE":     "群成员减少/退群",
+		"GROUP_ADD_ROBOT":         "机器人被拉入群",
+		"GROUP_DEL_ROBOT":         "机器人被移出群",
+		"GROUP_MSG_RECEIVE":       "群开启接收机器人消息",
+		"GROUP_MSG_REJECT":        "群关闭接收机器人消息",
+		"C2C_MSG_RECEIVE":         "用户开启接收机器人消息",
+		"C2C_MSG_REJECT":          "用户关闭接收机器人消息",
+		"FRIEND_ADD":              "用户添加机器人为好友",
+		"FRIEND_DEL":              "用户删除机器人好友",
+		"MESSAGE_AUDIT_PASS":      "消息审核通过",
+		"MESSAGE_AUDIT_REJECT":    "消息审核不通过",
+	}
+}

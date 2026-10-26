@@ -15,6 +15,9 @@ type Event interface {
 // Context 事件订阅上下文: 嵌入 MessageManager 提供指令同款消息 API
 type Context struct {
 	*context.MessageManager
+	// Sandbox 标记这条事件来自管理台沙盒(由 Emit 注入): 传消息的适配器照常处理,
+	// 但存档这类有副作用的订阅者应当跳过。
+	Sandbox bool
 }
 
 func newContext(client *api.BotAPI, ev Event) *Context {

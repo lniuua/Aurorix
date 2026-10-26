@@ -30,6 +30,11 @@ func (msg *ImageMessage) Send() error {
 
 // SendWithID 同 Send, 额外返回平台消息 ID。
 func (msg *ImageMessage) SendWithID() (string, error) {
+	// 沙盒: 图片不上传不转图床, 直接把可加载地址交给管理台渲染。
+	if msg.Sandbox != nil {
+		msg.Sandbox.CaptureImage(msg.Summary, sandboxImageURL(msg.Src))
+		return "sandbox", nil
+	}
 	if !msg.ForceMedia {
 		useMD := msg.ForceMarkdown || (msg.Qapi != nil && msg.Qapi.GlobalMarkdown)
 		if useMD && msg.Qapi != nil {
@@ -103,11 +108,15 @@ func (msg *ImageMessage) sendMedia() error {
 
 func (msg *ImageMessage) sendMediaWithID() (string, error) {
 	up := MediaUploadFor(1, msg.Src, msg.Summary)
-	fileInfo, err := msg.Qapi.UploadMedia(msg.Target, msg.GroupId, msg.UserId, up)
+	res, err := msg.Qapi.Files.UploadMediaEx(msg.Target, msg.GroupId, msg.UserId, up)
 	if err != nil {
 		return "", err
 	}
-	media := &MediaMessage{Message: msg.Message, Media: MediaContent{FileInfo: fileInfo}}
+	if res.RawURL != "" {
+		msg.Message.MediaURL = res.RawURL
+	}
+	msg.Message.MediaDesc = "[图片]"
+	media := &MediaMessage{Message: msg.Message, Media: MediaContent{FileInfo: res.FileInfo}}
 	media.Init()
 	return media.SendWithID()
 }

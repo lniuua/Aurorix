@@ -240,9 +240,18 @@ type SegmentedProps<T extends string> = {
   onChange: (next: T) => void
   ariaLabel?: string
   className?: string
+  // sm 更紧凑, 给移动端或密集工具栏用。
+  size?: 'md' | 'sm'
 }
 
-export function Segmented<T extends string>({ options, value, onChange, ariaLabel, className }: SegmentedProps<T>) {
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+  className,
+  size = 'md',
+}: SegmentedProps<T>) {
   return (
     <div
       role="radiogroup"
@@ -259,7 +268,8 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
             aria-checked={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              'inline-flex min-h-11 items-center rounded-full px-4 text-sm transition-colors duration-300 ease-in-out',
+              'inline-flex items-center rounded-full transition-colors duration-300 ease-in-out',
+              size === 'sm' ? 'min-h-8 px-3 text-[12px]' : 'min-h-11 px-4 text-sm',
               active ? 'bg-surface font-medium text-accent-text' : 'text-ink-soft hover:text-accent-text',
             )}
           >

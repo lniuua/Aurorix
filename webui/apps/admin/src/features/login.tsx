@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { Button, Field, Input, Switch } from '@aurorix/webui'
+import { Logo } from '../components/logo'
 import { post } from '../lib/api'
 import { qk, queryClient } from '../lib/query'
 
@@ -27,12 +28,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid h-full place-items-center bg-background px-6">
+    <div className="grid h-full place-items-center bg-transparent px-6">
       <form onSubmit={submit} className="card texture-paper w-full max-w-md">
         <header className="mb-6 flex items-center gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-[1.25rem] border border-accent/25 bg-accent font-serif text-[20px] font-semibold text-accent-ink">
-            A
-          </span>
+          <Logo size="lg" />
           <div className="min-w-0">
             <h1 className="font-serif text-xl">Aurorix 管理台</h1>
             <p className="text-xs text-ink-faint">需要管理密码才能进入</p>

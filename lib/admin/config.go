@@ -17,10 +17,12 @@ type coreField struct {
 	Desc    string   `json:"desc,omitempty"`
 	Kind    string   `json:"kind"`
 	Options []string `json:"options,omitempty"`
-	Hot     bool     `json:"hot"`
-	Restart bool     `json:"restart"`
-	Value   any      `json:"value"`
-	Set     bool     `json:"set"`
+	// OptionHints 选项名 → 悬停说明(如订阅事件的详细介绍)。
+	OptionHints map[string]string `json:"option_hints,omitempty"`
+	Hot         bool              `json:"hot"`
+	Restart     bool              `json:"restart"`
+	Value       any               `json:"value"`
+	Set         bool              `json:"set"`
 	// Placeholder 输入框里的示例提示(灰色占位文字), 前端直接渲染
 	Placeholder string `json:"placeholder,omitempty"`
 }
@@ -34,7 +36,7 @@ var coreSpecs = []coreField{
 	{Key: "gateway_url", Label: "自定义网关地址", Desc: "填 wss:// 地址可接 webhook 转 websocket 中转站, 留空走官方网关; 仅 websocket 模式生效", Kind: "text", Restart: true},
 	{Key: "database", Label: "SQLite 数据库文件", Kind: "text", Restart: true},
 	{Key: "protocol", Label: "协议模式", Kind: "select", Options: []string{"webhook", "websocket"}, Restart: true},
-	{Key: "intents", Label: "WebSocket 订阅事件", Desc: "至少选一个；全不选时启动使用默认订阅", Kind: "multiselect", Options: gateway.IntentEvents(), Restart: true},
+	{Key: "intents", Label: "WebSocket 订阅事件", Desc: "至少选一个；全不选时启动使用默认订阅", Kind: "multiselect", Options: gateway.IntentEvents(), OptionHints: gateway.IntentDescriptions(), Restart: true},
 	{Key: "prefixes", Label: "指令前缀符号", Desc: "多选；取消「无前缀」后 confirm 等无前缀指令需带符号触发", Kind: "multiselect", Options: []string{"!", "/", "#", "无前缀"}, Restart: true},
 	{Key: "admin_password", Label: "管理密码", Desc: "留空保持原值; 修改后现有会话立即失效", Kind: "secret", Hot: true},
 	{Key: "log_level", Label: "控制台日志级别", Kind: "select", Options: []string{"debug", "info", "warn", "error"}, Hot: true},
@@ -54,6 +56,9 @@ var coreSpecs = []coreField{
 	{Key: "welcome_buttons", Label: "新人进群底部按钮", Desc: "语法与上面「底部按钮」完全一致; 只挂在这条欢迎消息上, 不跟全局按钮混, 计数也各算各的。留空则不挂键盘", Placeholder: "帮助 | command | /help ; style=1", Kind: "textlist", Hot: true},
 	{Key: "farewell_extra", Label: "成员退群附加内容", Desc: "同「新人进群附加内容」, 追加在退群文案后面, 同样不用自己编码。留空则不加", Kind: "textarea", Hot: true},
 	{Key: "farewell_buttons", Label: "成员退群底部按钮", Desc: "语法同「底部按钮」; 只挂在这条退群提示上。留空则不挂键盘", Kind: "textlist", Hot: true},
+	{Key: "owners", Label: "主人名单", Desc: "每行一个用户 openid；群内 member_openid、私聊 user_openid、跨群 union_openid 填任意一个都能命中，命中后拥有最高权限(owner)", Kind: "strlist", Hot: true},
+	{Key: "access", Label: "全局黑白名单", Desc: "跨插件的总开关。mode 选 off/whitelist/blacklist; groups 每行一个群 openid; users 每行一个用户 openid(群聊会同时用 member/user/union openid 匹配, 群与私聊共用同一份名单)", Kind: "access", Hot: true},
+	{Key: "ui", Label: "管理台外观", Desc: "全屏背景图 URL 与不透明度；改完点保存即热更", Kind: "ui", Hot: true},
 }
 
 func handleGetConfig(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +131,18 @@ func applyCoreValue(field *coreField, cfg config.AppConfig) {
 		field.Value = cfg.FarewellExtra
 	case "farewell_buttons":
 		field.Value = cfg.FarewellButtons
+	case "owners":
+		field.Value = cfg.Owners
+	case "access":
+		field.Value = cfg.Access
+	case "ui":
+		field.Value = cfg.UI
 	}
+}
+
+// handleUIGet 公开返回管理台外观配置(登录页也需要读取, 故不走鉴权)。
+func handleUIGet(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, config.Current().UI)
 }
 
 func handlePutConfig(deps Deps) http.HandlerFunc {

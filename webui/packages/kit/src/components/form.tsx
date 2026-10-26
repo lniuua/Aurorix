@@ -2,7 +2,7 @@
 import { useState, type ComponentProps, type ReactNode } from 'react'
 import { ChevronDown, Eye, EyeOff, Info, Plus, TriangleAlert, X } from 'lucide-react'
 import { cn } from '../lib/cn'
-import { Button } from './ui'
+import { Button, Tooltip } from './ui'
 
 export const Input = ({ className, ...rest }: ComponentProps<'input'>) => (
   <input className={cn('input', className)} {...rest} />
@@ -231,16 +231,16 @@ type MultiSelectProps = {
   value: string[]
   onChange: (next: string[]) => void
   labels?: Record<string, string>
+  descriptions?: Record<string, string>
 }
 
-export function MultiSelect({ options, value, onChange, labels }: MultiSelectProps) {
+export function MultiSelect({ options, value, onChange, labels, descriptions }: MultiSelectProps) {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((option) => {
         const active = value.includes(option)
-        return (
+        const button = (
           <button
-            key={option}
             type="button"
             aria-pressed={active}
             onClick={() => onChange(active ? value.filter((item) => item !== option) : [...value, option])}
@@ -253,6 +253,16 @@ export function MultiSelect({ options, value, onChange, labels }: MultiSelectPro
           >
             {labels?.[option] ?? option}
           </button>
+        )
+        const description = descriptions?.[option]
+        return description ? (
+          <Tooltip key={option} label={description}>
+            {button}
+          </Tooltip>
+        ) : (
+          <span key={option} className="inline-flex">
+            {button}
+          </span>
         )
       })}
     </div>

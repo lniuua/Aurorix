@@ -160,6 +160,9 @@ type AccessRule struct {
 	Mode   string   `json:"mode"`
 	Users  []string `json:"users"`
 	Groups []string `json:"groups"`
+	// Role 覆盖指令代码里声明的角色要求(owner/admin/member);
+	// 空表示沿用声明值。只对 commands 里的具体指令有意义。
+	Role string `json:"role,omitempty"`
 }
 
 type AccessConfig struct {
@@ -184,11 +187,20 @@ func refreshDisabledLocked() {
 	pluginDisabled.Store(m)
 }
 
+// ManagedCommand 是访问控制面板里的一条指令信息: 路径 + 角色门槛。
+type ManagedCommand struct {
+	Path     string `json:"path"`
+	Role     string `json:"role"` // 空 = 任何人; member / admin / owner
+	Describe string `json:"describe,omitempty"`
+}
+
 type ManagedPlugin struct {
 	ConfiguredPlugin
-	Commands []string     `json:"commands"`
-	Access   AccessConfig `json:"access"`
-	Console  string       `json:"console,omitempty"`
+	Commands []string `json:"commands"`
+	// CommandInfo 与 Commands 一一对应, 额外带角色要求, 供面板显示「谁能用」。
+	CommandInfo []ManagedCommand `json:"command_info"`
+	Access      AccessConfig     `json:"access"`
+	Console     string           `json:"console,omitempty"`
 }
 
 var denyAllAccessRule = AccessRule{Mode: "whitelist"}
@@ -251,7 +263,8 @@ func LoadAccessConfigurations(configs map[string]AccessConfig) error {
 				delete(access.Commands, path)
 				continue
 			}
-			if rule.Mode == "off" {
+			// mode=off 但配了 role 的规则要保留: 它只覆盖角色门槛。
+			if rule.Mode == "off" && rule.Role == "" {
 				delete(access.Commands, path)
 			}
 		}
@@ -311,15 +324,18 @@ func ManagedPlugins() []ManagedPlugin {
 			base = ConfiguredPlugin{ID: id, Name: name, Description: registered.Description, Fields: []ConfigField{}, Values: map[string]any{}}
 		}
 		commands := make([]string, 0)
+		info := make([]ManagedCommand, 0)
 		for _, command := range registered.Commands {
 			collectCommandPaths(command, command.Prefix, &commands)
+			collectCommandInfo(command, command.Prefix, &info)
 		}
 		slices.Sort(commands)
+		slices.SortFunc(info, func(a, b ManagedCommand) int { return cmp.Compare(a.Path, b.Path) })
 		console := ""
 		if registered.WebUI != nil && registered.WebUI.SPA != nil {
 			console = "/" + id + "/"
 		}
-		result = append(result, ManagedPlugin{ConfiguredPlugin: base, Commands: commands, Access: cloneAccessConfig(pluginAccess[id]), Console: console})
+		result = append(result, ManagedPlugin{ConfiguredPlugin: base, Commands: commands, CommandInfo: info, Access: cloneAccessConfig(pluginAccess[id]), Console: console})
 	}
 	slices.SortFunc(result, func(a, b ManagedPlugin) int { return cmp.Compare(a.ID, b.ID) })
 	return result
@@ -354,7 +370,8 @@ func PrepareAccessConfiguration(id string, access AccessConfig) (AccessConfig, e
 		if err := validateAccessRule(rule); err != nil {
 			return AccessConfig{}, fmt.Errorf("command %s: %w", path, err)
 		}
-		if rule.Mode == "off" {
+		// mode=off 但配了 role 的规则要保留: 它只覆盖角色门槛, 不参与黑白名单。
+		if rule.Mode == "off" && rule.Role == "" {
 			delete(prepared.Commands, path)
 		}
 	}
@@ -547,6 +564,18 @@ func collectCommandPaths(command *Command, path string, result *[]string) {
 	}
 }
 
+// collectCommandInfo 与 collectCommandPaths 同构, 额外带上角色要求。
+func collectCommandInfo(command *Command, path string, result *[]ManagedCommand) {
+	*result = append(*result, ManagedCommand{
+		Path:     path,
+		Role:     string(command.Role),
+		Describe: command.Describe,
+	})
+	for _, subcommand := range command.SubCommand {
+		collectCommandInfo(subcommand, path+" "+subcommand.Prefix, result)
+	}
+}
+
 func commandPathSet(registered *Plugin) map[string]bool {
 	result := make(map[string]bool)
 	for _, command := range registered.Commands {
@@ -574,6 +603,7 @@ func normalizeAccessRule(rule AccessRule) AccessRule {
 	if rule.Mode == "" {
 		rule.Mode = "off"
 	}
+	rule.Role = strings.ToLower(strings.TrimSpace(rule.Role))
 	rule.Users = cleanIDs(rule.Users)
 	rule.Groups = cleanIDs(rule.Groups)
 	return rule
@@ -596,6 +626,11 @@ func cleanIDs(values []string) []string {
 func validateAccessRule(rule AccessRule) error {
 	if rule.Mode != "off" && rule.Mode != "whitelist" && rule.Mode != "blacklist" {
 		return fmt.Errorf("mode must be off, whitelist, or blacklist")
+	}
+	switch rule.Role {
+	case "", "member", "admin", "owner", "bot_owner":
+	default:
+		return fmt.Errorf("role must be member, admin, owner, or bot_owner")
 	}
 	return nil
 }
@@ -620,7 +655,24 @@ func cloneAccessConfig(source AccessConfig) AccessConfig {
 }
 
 func cloneAccessRule(source AccessRule) AccessRule {
-	return AccessRule{Mode: source.Mode, Users: append([]string(nil), source.Users...), Groups: append([]string(nil), source.Groups...)}
+	return AccessRule{
+		Mode:   source.Mode,
+		Users:  append([]string(nil), source.Users...),
+		Groups: append([]string(nil), source.Groups...),
+		Role:   source.Role,
+	}
+}
+
+// EffectiveRole 返回指令最终要求的角色: 访问规则里配了 role 就用它,
+// 否则用代码里声明的值。管理台据此可以在不改插件的前提下调整门槛。
+func EffectiveRole(pluginID, commandPath string, declared constant.RoleRequired) constant.RoleRequired {
+	reg := registry()
+	if access, ok := reg.access[pluginID]; ok {
+		if rule, ok := access.Commands[canonicalCommandPath(commandPath)]; ok && rule.Role != "" {
+			return constant.RoleRequired(rule.Role)
+		}
+	}
+	return declared
 }
 
 func PrepareConfiguration(id string, input map[string]any) (map[string]any, error) {

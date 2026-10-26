@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/KasumiYuku/Aurorix/lib/api"
 	"github.com/KasumiYuku/Aurorix/lib/buttons"
+	"github.com/KasumiYuku/Aurorix/lib/config"
 	"github.com/KasumiYuku/Aurorix/lib/constant"
 	"github.com/KasumiYuku/Aurorix/lib/context"
 	"github.com/KasumiYuku/Aurorix/lib/event"
@@ -24,6 +25,7 @@ var messageLog = logx.New("message")
 
 func init() {
 	event.SetBuiltinHook(ProcessPayload)
+	event.SetPreFilter(globalAccessFilter)
 	event.SetTaskScheduler(func(f func()) { pool.Go(f) })
 }
 
@@ -33,6 +35,8 @@ type commandDispatchOpts struct {
 	origin       constant.MessageOrigin
 	raw          string
 	checkPrivate bool
+	// sandbox 非空时同步执行并把回复收集进它, 用于管理台沙盒。
+	sandbox *message.SandboxSink
 }
 
 func dispatchCommand(payload structers.Payload, client *api.BotAPI, opts commandDispatchOpts) {
@@ -70,23 +74,29 @@ func dispatchCommand(payload structers.Payload, client *api.BotAPI, opts command
 	ctx.MessageManager.OriginalInput = payload.Data.Content
 	// 指令声明了豁免(或它挂在声明的根指令下)时, 本次回复一律不追加底部按钮。
 	ctx.MessageManager.NoFooter = rootCommand.NoFooter || resolvedCommand.NoFooter
+	ctx.MessageManager.Sandbox = opts.sandbox
 	if opts.groupID != "" {
 		ctx.SetGroupId(opts.groupID)
 	}
 	ctx.SetUserId(opts.userID)
 	ctx.SetMessageOrigin(opts.origin)
 
-	authorRole := role.Resolve(opts.userID, opts.groupID, payload.Data.Author.Role)
+	authorRole := role.ResolveAny(payloadUserIDs(payload), opts.groupID, payload.Data.Author.Role)
 
-	if !rootCommand.Role.CanUse(authorRole) {
+	// 角色门槛: 访问规则里配了覆盖值就用它, 否则用指令声明的。
+	rootRole := plugin.EffectiveRole(rootCommand.PluginId, rootCommand.Prefix, rootCommand.Role)
+	if !rootRole.CanUse(authorRole) {
 		messageLog.Warnf("用户%v无权限使用%v指令", payload.Data.Author.Username, rootCommand.Prefix)
 		permissionDenied(rootCommand, ctx)
 		return
 	}
-	if resolvedCommand != rootCommand && !resolvedCommand.Role.CanUse(authorRole) {
-		messageLog.Warnf("用户%v无权限使用%v指令", payload.Data.Author.Username, commandPath)
-		permissionDenied(resolvedCommand, ctx)
-		return
+	if resolvedCommand != rootCommand {
+		subRole := plugin.EffectiveRole(resolvedCommand.PluginId, commandPath, resolvedCommand.Role)
+		if !subRole.CanUse(authorRole) {
+			messageLog.Warnf("用户%v无权限使用%v指令", payload.Data.Author.Username, commandPath)
+			permissionDenied(resolvedCommand, ctx)
+			return
+		}
 	}
 	if opts.checkPrivate && (rootCommand.DisablePrivate || resolvedCommand.DisablePrivate) {
 		permissionDenied(resolvedCommand, ctx)
@@ -127,6 +137,11 @@ func dispatchCommand(payload structers.Payload, client *api.BotAPI, opts command
 		ctx.Parsed = parsed
 	} else {
 		ctx.Parsed = rawArgs(payload.Data.Content, tokens, rest, rootCommand)
+	}
+	if opts.sandbox != nil {
+		// 沙盒同步执行: 调用方要等回复收集完才能返回。
+		executeCommand(resolvedCommand, ctx)
+		return
 	}
 	pool.Go(func() { executeCommand(resolvedCommand, ctx) })
 }
@@ -174,6 +189,32 @@ func usageText(path string) string {
 		}
 	}
 	return prefix + path
+}
+
+// globalAccessFilter 全局黑白名单前置过滤: 命中拦截时整条事件(含订阅者)都不处理。
+// 对所有事件统一按用户/群判定; 没有用户也没有群的事件在 off/blacklist 下照常放行。
+func globalAccessFilter(payload structers.Payload) bool {
+	return config.Current().Access.Allow(payloadUserIDs(payload), payload.Data.GroupOpenID)
+}
+
+// payloadUserIDs 收集发送者的全部可匹配标识: 群内 member_openid、私聊 user_openid,
+// union_openid、以及按钮回调里的 user_id 等, 便于全局黑白名单跨群/私聊统一命中。
+func payloadUserIDs(payload structers.Payload) []string {
+	a := payload.Data.Author
+	d := payload.Data
+	return []string{
+		payload.ActorID(),
+		a.UserOpenID,
+		a.UnionID,
+		a.MemberOpenID,
+		a.ID,
+		d.UserOpenID,
+		d.GroupMemberOpenID,
+		d.OpenID,
+		d.MemberOpenId,
+		d.OpMemberOpenID,
+		d.Callback.Resolved.UserId,
+	}
 }
 
 func ProcessPayload(payload structers.Payload, client *api.BotAPI) {
@@ -254,6 +295,35 @@ func ProcessPayload(payload structers.Payload, client *api.BotAPI) {
 	case constant.MESSAGE_AUDIT_PASS, constant.MESSAGE_AUDIT_REJECT:
 		api.ResolveAudit(payload.Data.AuditID, payload.Data.MessageId, payload.EventType == constant.MESSAGE_AUDIT_PASS)
 		return
+	}
+}
+
+// Sandbox 在沙盒里同步跑一条消息指令: 不进统计, 回复全部收集进 sink, 不投递到平台。
+// 返回后 sink 里就是这条消息同步触发的全部回复; 插件另起协程发的消息捕获不到。
+func Sandbox(payload structers.Payload, client *api.BotAPI, sink *message.SandboxSink) {
+	raw := payload.Data.Content
+	switch payload.Type() {
+	case constant.GROUP_AT_MESSAGE_CREATE, constant.GROUP_MESSAGE_CREATE:
+		payload.Data.Content = utils.FilterAt(payload.Data.Content)
+		dispatchCommand(payload, client, commandDispatchOpts{
+			userID:  payload.ActorID(),
+			groupID: payload.Data.GroupOpenID,
+			origin:  constant.GroupMessage,
+			raw:     raw,
+			sandbox: sink,
+		})
+	case constant.C2C_MESSAGE_CREATE:
+		payload.Data.Content = strings.TrimSpace(payload.Data.Content)
+		if payload.Data.Content == "" {
+			return
+		}
+		dispatchCommand(payload, client, commandDispatchOpts{
+			userID:       payload.ActorID(),
+			origin:       constant.PrivateMessage,
+			raw:          raw,
+			checkPrivate: true,
+			sandbox:      sink,
+		})
 	}
 }
 

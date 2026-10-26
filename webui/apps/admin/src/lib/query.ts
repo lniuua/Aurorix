@@ -15,6 +15,7 @@ export const queryClient = new QueryClient({
 export const qk = {
   me: ['me'] as const,
   overview: ['overview'] as const,
+  ui: ['ui'] as const,
   logs: (filter: LogFilter) => ['logs', filter] as const,
   plugins: ['plugins'] as const,
   plugin: (id: string) => ['plugins', id] as const,

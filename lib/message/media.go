@@ -57,32 +57,41 @@ func (msg *UploadMessage) Send() error {
 //   - 直链: QQ 自己去下载, 不占我们的上行, 是最快的一条。给的是字节且够大时, 先问图床换直链。
 //   - 字节直传: 没有图床、图床不认这种媒体、或者直链那条不通(QQ 抓取超时 850027)时走这条。
 func (msg *UploadMessage) SendWithID() (string, error) {
+	// 沙盒: 媒体不上传也不投递, 只记一个占位。
+	if msg.Sandbox != nil {
+		msg.Sandbox.Capture("media", mediaDesc(msg.FileType))
+		return "sandbox", nil
+	}
 	up := MediaUploadFor(msg.FileType, msg.Src, msg.Name)
 	link := up.URL
 	if link == "" && msg.worthLink(len(up.Data)) {
 		link = msg.publishLink(up.Data)
 	}
-	fileInfo, err := msg.upload(up, link)
+	res, err := msg.upload(up, link)
 	if err != nil && link != "" && len(up.Data) > 0 {
 		// 直链那条不通 (QQ 抓取超时 850027): 字节还在手里, 换直传再试一次。
 		logger.Warnf("直链没通, 改走直传(%d 字节): %v", len(up.Data), err)
-		fileInfo, err = msg.upload(up, "")
+		res, err = msg.upload(up, "")
 	}
 	if err != nil {
 		return "", err
 	}
-	media := &MediaMessage{Message: msg.Message, Media: MediaContent{FileInfo: fileInfo}}
+	if res.RawURL != "" {
+		msg.Message.MediaURL = res.RawURL
+	}
+	msg.Message.MediaDesc = mediaDesc(msg.FileType)
+	media := &MediaMessage{Message: msg.Message, Media: MediaContent{FileInfo: res.FileInfo}}
 	media.Init()
 	return media.SendWithID()
 }
 
 // upload 递交一次: 有直链就给链接, 否则给字节(超过阈值时 api 层自己分片)。
-func (msg *UploadMessage) upload(base api.MediaUpload, link string) (string, error) {
+func (msg *UploadMessage) upload(base api.MediaUpload, link string) (api.MediaResult, error) {
 	base.URL = link
 	if link != "" {
 		base.Data = nil
 	}
-	return msg.Qapi.UploadMedia(msg.Target, msg.GroupId, msg.UserId, base)
+	return msg.Qapi.Files.UploadMediaEx(msg.Target, msg.GroupId, msg.UserId, base)
 }
 
 // worthLink 值不值得多跑一趟图床: 小文件内联上传比"先传图床再让 QQ 下载"快。
@@ -156,4 +165,17 @@ func mediaName(fileType int, src any) string {
 		return name
 	}
 	return "image"
+}
+
+// mediaDesc 返回媒体消息的占位描述。
+func mediaDesc(fileType int) string {
+	switch fileType {
+	case constant.MediaVideo:
+		return "[视频]"
+	case constant.MediaVoice:
+		return "[语音]"
+	case constant.MediaFile:
+		return "[文件]"
+	}
+	return "[图片]"
 }

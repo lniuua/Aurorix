@@ -29,27 +29,62 @@ const MODE_OPTIONS = [
   { value: 'blacklist', label: '黑名单' },
 ]
 
+const ROLE_OPTIONS = [
+  { value: '', label: '默认' },
+  { value: 'member', label: '所有人' },
+  { value: 'admin', label: '管理员' },
+  { value: 'owner', label: '群主' },
+  { value: 'bot_owner', label: '机器人主人' },
+]
+
 const EMPTY_RULE: AccessRule = { mode: 'off', users: [], groups: [] }
+
+const ROLE_META: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' | 'neutral' }> = {
+  bot_owner: { label: '机器人主人', tone: 'danger' },
+  owner: { label: '群主', tone: 'warn' },
+  admin: { label: '管理员', tone: 'ok' },
+  member: { label: '所有人', tone: 'neutral' },
+}
+
+/** 指令实际生效的角色门槛；空角色表示任何人可用。 */
+function RoleBadge({ role }: { role?: string }) {
+  const meta = ROLE_META[role ?? '']
+  if (!meta) return <Badge tone="neutral">所有人</Badge>
+  return <Badge tone={meta.tone}>{meta.label}</Badge>
+}
 
 function AccessRuleEditor({
   rule,
   onChange,
   path,
+  role,
 }: {
   rule: AccessRule
   onChange: (next: AccessRule) => void
   path: string
+  // 不传表示这条规则没有角色概念(默认规则); 传空串表示「所有人」。
+  role?: string
 }) {
+  const effectiveRole = rule.role || role
   return (
     <div className="flex flex-col gap-3 border-b border-line/60 py-3 last:border-b-0">
       <div className="flex flex-wrap items-center gap-3">
         <span className="min-w-[10rem] font-mono text-xs text-ink-soft">{path}</span>
+        {role !== undefined && <RoleBadge role={effectiveRole} />}
         <Select
           className="max-w-[10rem]"
           value={rule.mode}
           options={MODE_OPTIONS}
           onChange={(e) => onChange({ ...rule, mode: e.target.value as AccessRule['mode'] })}
         />
+        {role !== undefined && (
+          <Select
+            className="max-w-[10rem]"
+            value={rule.role ?? ''}
+            options={ROLE_OPTIONS}
+            onChange={(e) => onChange({ ...rule, role: e.target.value })}
+          />
+        )}
       </div>
       {rule.mode !== 'off' && (
         <div className="grid gap-3 md:grid-cols-2">
@@ -161,7 +196,8 @@ function PluginDetail({ plugin, onClose }: { plugin: ManagedPlugin; onClose: () 
     try {
       const commands: Record<string, AccessRule> = {}
       for (const [path, rule] of Object.entries(access.commands)) {
-        if (rule.mode !== 'off') commands[path] = rule
+        // mode=off 但指定了 role 的规则也要提交: 它只覆盖角色门槛。
+        if (rule.mode !== 'off' || (rule.role ?? '') !== '') commands[path] = rule
       }
       await put<OkResult>(`/plugins/${plugin.id}/access`, { ...access, commands })
       await queryClient.invalidateQueries({ queryKey: qk.plugins })
@@ -255,7 +291,10 @@ function PluginDetail({ plugin, onClose }: { plugin: ManagedPlugin; onClose: () 
               />
             </Panel>
 
-            <Panel title="指令覆盖" description="按指令路径单独设置，留「不限制」表示继承默认规则">
+            <Panel
+              title="指令覆盖"
+              description="按指令路径单独设置：黑白名单留「不限制」表示继承默认规则；角色留「默认」表示用代码里声明的门槛"
+            >
               {plugin.commands.length === 0 ? (
                 <p className="text-sm text-ink-soft">该插件没有注册指令。</p>
               ) : (
@@ -263,6 +302,7 @@ function PluginDetail({ plugin, onClose }: { plugin: ManagedPlugin; onClose: () 
                   <AccessRuleEditor
                     key={path}
                     path={path}
+                    role={plugin.command_info?.find((item) => item.path === path)?.role ?? ''}
                     rule={access.commands?.[path] ?? EMPTY_RULE}
                     onChange={(next) =>
                       setAccess((prev) => ({ ...prev, commands: { ...prev.commands, [path]: next } }))

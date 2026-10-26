@@ -19,10 +19,11 @@ import {
 } from '@aurorix/webui'
 import { RotateCw, Save, TriangleAlert } from 'lucide-react'
 import { PageHeader } from '../components/layout'
+import { AccessEditor } from '../components/access-editor'
 import { get, post, put } from '../lib/api'
 import { qk, queryClient } from '../lib/query'
 import { toast } from '../lib/toast'
-import type { ConfigSaveResult, ConfigView, CoreField, Overview } from '../lib/types'
+import type { ConfigSaveResult, ConfigView, CoreField, GlobalAccess, Overview, UIConfig } from '../lib/types'
 
 function toList(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item)) : []
@@ -53,7 +54,14 @@ function widget(field: CoreField, value: unknown, onChange: (next: unknown) => v
         />
       )
     case 'multiselect':
-      return <MultiSelect options={field.options ?? []} value={toList(value)} onChange={onChange} />
+      return (
+        <MultiSelect
+          options={field.options ?? []}
+          value={toList(value)}
+          onChange={onChange}
+          descriptions={field.option_hints}
+        />
+      )
     case 'textarea':
       // 整段文本原样保存: 换行是内容的一部分, 不能像 textlist 那样按行拆成候选
       return (
@@ -76,6 +84,45 @@ function widget(field: CoreField, value: unknown, onChange: (next: unknown) => v
           onChange={(e) => onChange(e.target.value.split('\n'))}
         />
       )
+    case 'access':
+      return <AccessEditor value={value as GlobalAccess | null | undefined} onChange={onChange} />
+    case 'ui': {
+      const ui = (typeof value === 'object' && value !== null ? value : {}) as UIConfig
+      const patch = (partial: Partial<UIConfig>) => onChange({ ...ui, ...partial })
+      const opacity = ui.background_opacity || 30
+      return (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <p className="mb-1 text-[11px] text-ink-soft">Logo 图片 URL（留空用默认字标）</p>
+            <Input
+              value={ui.logo ?? ''}
+              placeholder="https://example.com/logo.png"
+              onChange={(e) => patch({ logo: e.target.value })}
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-[11px] text-ink-soft">背景图片 URL（留空关闭）</p>
+            <Input
+              value={ui.background ?? ''}
+              placeholder="https://example.com/wallpaper.jpg"
+              onChange={(e) => patch({ background: e.target.value })}
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-[11px] text-ink-soft">不透明度（{Math.round(opacity)}%）</p>
+            <input
+              type="range"
+              min={1}
+              max={100}
+              step={1}
+              value={opacity}
+              onChange={(e) => patch({ background_opacity: Number(e.target.value) })}
+              className="w-full accent-accent"
+            />
+          </div>
+        </div>
+      )
+    }
     case 'intlist':
     case 'strlist':
       return <FieldList value={toList(value)} onChange={onChange} />
@@ -150,6 +197,8 @@ export default function SettingsPage() {
       setDraft({})
       setResult(saved)
       await queryClient.invalidateQueries({ queryKey: qk.config })
+      // 外观(Logo / 背景)走公开的 /ui 接口, 保存后立刻刷新, 不然要等缓存过期。
+      await queryClient.invalidateQueries({ queryKey: qk.ui })
       toast(saved.restart_needed ? '已保存，部分项需重启生效' : '已保存并热更', saved.restart_needed ? 'info' : 'ok')
     } catch (err) {
       toast(err instanceof Error ? err.message : '保存失败', 'err')
@@ -176,7 +225,11 @@ export default function SettingsPage() {
               hint={field.desc}
               badge={<HotBadge hot={field.hot} />}
               className={
-                field.kind === 'multiselect' || field.kind === 'textlist' || field.kind === 'textarea'
+                field.kind === 'multiselect' ||
+                field.kind === 'textlist' ||
+                field.kind === 'textarea' ||
+                field.kind === 'access' ||
+                field.kind === 'ui'
                   ? 'md:col-span-2'
                   : undefined
               }

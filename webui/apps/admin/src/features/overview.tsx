@@ -16,7 +16,7 @@ import {
 import { RefreshCw, Users, Wifi, WifiOff } from 'lucide-react'
 import { PageHeader, useNow, useOverview, type OverviewData } from '../components/layout'
 import { post } from '../lib/api'
-import { fmtBytes, fmtDur, fmtNum, fmtRelative, fmtTime } from '../lib/format'
+import { fmtBytes, fmtDur, fmtNum, fmtRelative } from '../lib/format'
 import { qk } from '../lib/query'
 import { toast } from '../lib/toast'
 import type { ProfileView } from '../lib/types'
@@ -62,7 +62,7 @@ export default function OverviewPage() {
     <>
       <PageHeader
         title="概览"
-        description="运行态、消息统计与网关现状，实时快照每秒刷新"
+        description="运行状态、消息统计与网关现状，实时快照每秒刷新"
         actions={
           <Badge tone={gatewayOnline ? 'ok' : 'danger'} icon={gatewayOnline ? Wifi : WifiOff}>
             {gatewayOnline ? '网关在线' : '网关离线'}
@@ -90,7 +90,7 @@ export default function OverviewPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="运行态" description="进程与协议">
+        <Card title="运行状态" description="进程与协议">
           <KeyValueList
             items={[
               { label: '协议模式', value: runtime.protocol || '—' },
@@ -123,7 +123,7 @@ export default function OverviewPage() {
                 />
                 <div className="min-w-0">
                   <p className="font-serif text-lg">{profile.username || '—'}</p>
-                  <p className="truncate font-mono text-xs text-ink-faint">{profile.id}</p>
+                  <p className="truncate font-mono text-xs text-ink-faint">{profile.appid || '—'}</p>
                 </div>
               </div>
               <KeyValueList
@@ -159,7 +159,7 @@ export default function OverviewPage() {
               { label: '会话 ID', value: gateway.session_id || '—' },
               { label: '序列号', value: gateway.seq === undefined ? '—' : fmtNum(gateway.seq) },
               { label: '心跳 ACK', value: gateway.heartbeat_ack ? '正常' : '待确认' },
-              { label: '连接起始', value: gateway.since_ms ? fmtTime(gateway.since_ms) : '—' },
+              { label: '已连接时长', value: gateway.since_ms ? fmtDur(gateway.since_ms / 1000) : '—' },
             ]}
           />
         ) : (

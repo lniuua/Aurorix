@@ -61,8 +61,30 @@
 | `pprof_addr` | 字符串 | 空（关闭） | 仅文件 | 开启 pprof 调试端口，见下节 |
 | `plugin_settings` | 对象 | `{}` | 热更 | 各插件配置，由管理台「插件」页维护 |
 | `plugin_access` | 对象 | `{}` | 热更 | 各插件访问控制，由管理台「插件」页维护 |
+| `access` | 对象 | `{"group_mode":"off","user_mode":"off"}` | 热更 | 全局黑白名单，见下节「access：全局黑白名单」 |
 
 `plugin_settings` 与 `plugin_access` 的结构由各插件自己的 `Config` 字段定义，见 [storage.md](storage.md)。
+
+## access：全局黑白名单
+
+`access` 是跨插件的总开关，群与用户各自独立开关：
+
+```json
+{
+  "access": {
+    "group_mode": "off",
+    "user_mode": "off",
+    "groups": ["群 openid 1", "群 openid 2"],
+    "users": ["用户 openid 1", "用户 openid 2"]
+  }
+}
+```
+
+- `group_mode` / `user_mode`：`off`（不限制，默认）/ `whitelist`（白名单）/ `blacklist`（黑名单）。
+- `groups`：群 openid 列表，按 `group_mode` 生效。
+- `users`：用户 openid 列表，按 `user_mode` 生效。群消息会同时用 `member_openid` / `user_openid` / `union_openid` 去匹配，所以同一个用户在群聊与私聊里能被同一条记录覆盖。
+
+判定：用户侧按 `user_mode` 先判，群消息再按 `group_mode` 判群侧，任一拒绝即拦截。拦截发生在事件入口，命中后该消息不再进入任何订阅者（gscore 转发、存档）与指令分发。
 
 ## protocol：两种接入方式
 

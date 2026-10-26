@@ -37,8 +37,14 @@ type Message struct {
 	activeFallback bool `json:"-"`
 	// OriginalInput 触发这条回复的原消息文本(主动推送时为空); 底部「复读」按钮用它把原文回填到输入框。
 	OriginalInput string `json:"-"`
+	// MediaURL 媒体上传成功后 QQ 返回的官方直链 (raw_url); 供存档展示。
+	MediaURL string `json:"-"`
+	// MediaDesc 媒体消息的占位描述（如 [图片]），raw_url 为空时用于存档展示。
+	MediaDesc string `json:"-"`
 	// NoFooter 为 true 时这条消息不追加框架级底部按钮。
 	NoFooter bool `json:"-"`
+	// Sandbox 非空时这条消息只记录进沙盒, 不投递到平台(管理台沙盒用)。
+	Sandbox *SandboxSink `json:"-"`
 }
 
 // MessageReference 引用回复：message_id 为被引用的原消息 ID。
@@ -191,6 +197,11 @@ func passiveGone(err error) bool {
 // 主动那条路**不占被动序号**(上游也不认它), 所以预算用光之后主动照样发得出去 —— 从前这里顺序不对,
 // 先取序号再判主动, 于是"预算用光"会把主动重发也一起拒掉。
 func (msg *Message) sendOnce(initiative bool) (string, error) {
+	// 沙盒: 只收集不投递, 也不触发 observeSent(避免污染存档与统计)。
+	if msg.Sandbox != nil {
+		msg.Sandbox.CaptureMessage(msg)
+		return "sandbox", nil
+	}
 	var err error
 	if !initiative && !msg.initiativePush {
 		if msg.MsgRef != nil && msg.MsgRef.Spent() {

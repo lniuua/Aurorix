@@ -45,6 +45,7 @@ func Install(client *api.BotAPI) *Store {
 
 	h := &handler{store: store, api: client, busy: make(map[string]bool)}
 	event.On(constant.GROUP_AT_MESSAGE_CREATE, h.inbound)
+	event.On(constant.GROUP_MESSAGE_CREATE, h.inbound)
 	event.On(constant.C2C_MESSAGE_CREATE, h.inbound)
 	message.SetSentHook(h.outbound)
 	go h.backfillNames()
@@ -80,8 +81,13 @@ func (h *handler) backfillNames() {
 	}
 }
 
-// inbound 只收得到"和机器人有关"的消息: 群里是 @ 到机器人的, 单聊是直接发给机器人的。
-func (h *handler) inbound(_ *event.Context, ev *event.MessageEvent) {
+// inbound 存档入站消息。群聊同时订阅 @机器人 与全量两种事件:
+// 平台把 @消息 归到哪一类会随配置变化, 所以两类都挂, 其余交给事件类型本身区分。
+func (h *handler) inbound(ctx *event.Context, ev *event.MessageEvent) {
+	if ctx != nil && ctx.Sandbox {
+		// 沙盒消息不进存档: 它不是真实会话往来。
+		return
+	}
 	if ev == nil || ev.UserID == "" {
 		return
 	}
@@ -90,13 +96,14 @@ func (h *handler) inbound(_ *event.Context, ev *event.MessageEvent) {
 		kind, convID = KindGroup, ev.GroupID
 	}
 	h.save(Message{
-		ConvID:     convID,
-		Kind:       kind,
-		Direction:  Inbound,
-		SenderID:   ev.UserID,
-		SenderName: ev.Username,
-		Content:    ev.Content,
-		PlatformID: ev.MessageID,
+		ConvID:      convID,
+		Kind:        kind,
+		Direction:   Inbound,
+		SenderID:    ev.UserID,
+		SenderName:  ev.Username,
+		Content:     ev.Content,
+		Attachments: ev.Attachments,
+		PlatformID:  ev.MessageID,
 	})
 	if kind == KindGroup {
 		h.fillGroupName(convID)

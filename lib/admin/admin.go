@@ -58,6 +58,7 @@ func Register(mux *http.ServeMux, deps Deps) {
 
 	mux.HandleFunc("POST /admin/api/login", handleLogin(sess))
 	mux.HandleFunc("POST /admin/api/logout", handleLogout(sess))
+	mux.HandleFunc("GET /admin/api/ui", handleUIGet)
 
 	api := http.NewServeMux()
 	api.HandleFunc("GET /admin/api/me", func(w http.ResponseWriter, r *http.Request) {
@@ -68,6 +69,8 @@ func Register(mux *http.ServeMux, deps Deps) {
 	api.HandleFunc("POST /admin/api/profile/refresh", handleProfileRefresh(deps))
 	api.HandleFunc("GET /admin/api/stream", bus.handleStream)
 	api.HandleFunc("GET /admin/api/logs", handleLogs)
+	api.HandleFunc("POST /admin/api/sandbox", handleSandboxSend(deps.Client))
+	api.HandleFunc("GET /admin/api/sandbox/poll", handleSandboxPoll)
 	registerPluginRoutes(api)
 	if deps.Assets != nil {
 		registerAssetsRoutes(api, deps.Assets)

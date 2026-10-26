@@ -6,20 +6,24 @@ import {
   Clock,
   Command,
   ExternalLink,
+  FlaskConical,
   Image as ImageIcon,
   LayoutGrid,
   LogOut,
+  Menu,
   MessagesSquare,
   Package,
   ScrollText,
   SlidersHorizontal,
 } from 'lucide-react'
+import { Logo } from './logo'
 import { get, post } from '../lib/api'
 import { fmtDur } from '../lib/format'
 import { useConnState } from '../lib/live'
 import { qk, queryClient } from '../lib/query'
 import { toast } from '../lib/toast'
 import type { ManagedPlugin, Overview } from '../lib/types'
+import { ImagePreviewProvider } from './lightbox'
 
 /** 实时快照带服务器时钟；REST 回退缺该字段。 */
 export type OverviewData = Overview & { now?: number }
@@ -29,6 +33,7 @@ const NAV = [
   { to: '/logs', label: '日志', icon: ScrollText },
   { to: '/messages', label: '消息', icon: MessagesSquare },
   { to: '/menu', label: '指令面板', icon: Command },
+  { to: '/sandbox', label: '沙盒', icon: FlaskConical },
   { to: '/plugins', label: '插件', icon: Package },
   { to: '/assets', label: '图床', icon: ImageIcon },
   { to: '/jobs', label: '定时任务', icon: Clock },
@@ -120,6 +125,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const { data: overview } = useOverview()
   const now = useNow()
+  const [navOpen, setNavOpen] = useState(false)
 
   const gateway = overview?.gateway
   const gatewayOnline = overview
@@ -145,12 +151,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-background text-ink">
-      <aside className="flex w-[244px] shrink-0 flex-col border-r border-line bg-surface px-4 py-5">
+    <div className="flex h-dvh overflow-hidden bg-transparent text-ink">
+      {/* 移动端遮罩：抽屉打开时点击空白处关闭 */}
+      {navOpen && (
+        <div className="fixed inset-0 z-30 bg-scrim md:hidden" onClick={() => setNavOpen(false)} />
+      )}
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 flex w-[244px] shrink-0 flex-col border-r border-line bg-surface px-4 py-5 transition-transform duration-200',
+          'md:static md:z-auto md:translate-x-0 md:bg-surface/60',
+          navOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
         <div className="flex items-center gap-3 px-1.5 pb-6 pt-0.5">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[1.25rem] border border-accent/25 bg-accent font-serif text-[19px] font-semibold text-accent-ink">
-            A
-          </span>
+          <Logo size="md" />
           <div className="min-w-0">
             <b className="block font-serif text-[17px] font-semibold leading-tight tracking-tight">Aurorix</b>
             <small className="text-[11px] tracking-[0.18em] text-ink-faint">ADMIN</small>
@@ -162,6 +177,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={() => setNavOpen(false)}
               className={({ isActive }) => cn('nav-item', isActive && 'bg-accent-soft text-accent-text')}
             >
               <item.icon aria-hidden className="size-[17px] shrink-0" />
@@ -189,8 +205,26 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="relative min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-8 pb-16 pt-8">{children}</div>
+      <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* 移动端顶栏：桌面端隐藏 */}
+        <div className="flex items-center gap-2 border-b border-line bg-surface/60 px-3 py-2 md:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            icon={Menu}
+            aria-label="打开菜单"
+            onClick={() => setNavOpen(true)}
+          />
+          <span className="font-serif text-[15px] font-semibold">Aurorix</span>
+        </div>
+
+        <div className="relative min-h-0 flex-1 overflow-y-auto">
+          <ImagePreviewProvider>
+            <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-16 pt-6 md:px-8 md:pt-8">
+              {children}
+            </div>
+          </ImagePreviewProvider>
+        </div>
       </main>
     </div>
   )

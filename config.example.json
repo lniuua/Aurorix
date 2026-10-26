@@ -16,7 +16,7 @@
     "MESSAGE_AUDIT_REJECT"
   ],
   "database": "bot.db",
-  "admin_password": "设置一个管理面板密码",
+  "admin_password": "123456",
   "global_markdown": false,
   "image_limits_enabled": true,
   "image_max_width": 350,
@@ -24,6 +24,13 @@
   "retry_when": [11253, 630006],
   "upload_threshold": 3145728,
   "log_level": "info",
+  "owners": [],
+  "access": {
+    "group_mode": "off",
+    "user_mode": "off",
+    "groups": [],
+    "users": []
+  },
   "footer_buttons_enabled": true,
   "footer_buttons": [
     "+1 | repeat",
@@ -39,24 +46,24 @@
   },
   "plugin_access": {
     "echo": {
-      "default": { "mode": "all" },
+      "default": { "mode": "off" },
       "commands": {
-        "/random": { "mode": "all" },
-        "/uid": { "mode": "deny" }
+        "/random": { "mode": "off" },
+        "/uid": { "mode": "off" }
       }
     },
     "uptime": {
-      "default": { "mode": "admin" },
+      "default": { "mode": "off" },
       "commands": {
-        "/uptime": { "mode": "admin" },
-        "/openai": { "mode": "admin" }
+        "/uptime": { "mode": "off" },
+        "/openai": { "mode": "off" }
       }
     },
     "bind": {
-      "default": { "mode": "all" }
+      "default": { "mode": "off" }
     },
     "imagegen": {
-      "default": { "mode": "all" }
+      "default": { "mode": "off" }
     }
   }
 }

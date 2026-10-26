@@ -78,6 +78,7 @@ export interface BotProfile {
   union_user_account: string
   share_url: string
   welcome_msg: string
+  appid: string
 }
 
 export interface DayStat {
@@ -160,12 +161,28 @@ export interface AccessRule {
   mode: 'off' | 'whitelist' | 'blacklist'
   users: string[]
   groups: string[]
+  // 覆盖指令声明的角色要求; 空表示沿用声明值。
+  role?: string
+}
+
+export interface GlobalAccess {
+  group_mode: 'off' | 'whitelist' | 'blacklist'
+  user_mode: 'off' | 'whitelist' | 'blacklist'
+  groups: string[]
+  users: string[]
 }
 
 export interface AccessConfig {
   default: AccessRule
   commands: Record<string, AccessRule>
   disabled?: boolean
+}
+
+export interface ManagedCommand {
+  path: string
+  // 空 = 任何人; member / admin / owner
+  role: string
+  describe?: string
 }
 
 export interface ManagedPlugin {
@@ -175,6 +192,7 @@ export interface ManagedPlugin {
   fields: PluginField[]
   values: Record<string, unknown>
   commands: string[]
+  command_info?: ManagedCommand[]
   access: AccessConfig
   console?: string
 }
@@ -195,13 +213,20 @@ export interface CoreField {
   key: string
   label: string
   desc?: string
-  kind: 'text' | 'secret' | 'number' | 'bool' | 'intlist' | 'strlist' | 'textlist' | 'textarea' | 'multiselect' | 'select' | 'note'
+  kind: 'text' | 'secret' | 'number' | 'bool' | 'intlist' | 'strlist' | 'textlist' | 'textarea' | 'multiselect' | 'select' | 'note' | 'access' | 'ui'
   options?: string[]
+  option_hints?: Record<string, string>
   placeholder?: string
   hot: boolean
   restart: boolean
   value: unknown
   set: boolean
+}
+
+export interface UIConfig {
+  logo?: string
+  background?: string
+  background_opacity?: number
 }
 
 export interface ConfigView {
@@ -241,6 +266,27 @@ export interface AssetsView {
 
 export interface OkResult {
   ok: boolean
+}
+
+export interface SandboxMessage {
+  kind: string
+  content: string
+  // 图片的浏览器可加载地址(公网 URL 或 data URL), 为空时只显示占位。
+  url?: string
+}
+
+export interface SandboxReply {
+  session: string
+  messages: SandboxMessage[]
+  scene: string
+  text: string
+}
+
+export interface SandboxPollView {
+  messages: SandboxMessage[]
+  total: number
+  // 框架指令是否已执行完; 适配器的异步回复可能还在路上。
+  done: boolean
 }
 
 export interface NoticeResult {
@@ -376,6 +422,15 @@ export interface InboxConversation {
   last_preview: string
 }
 
+export interface InboxAttachment {
+  content_type: string
+  filename?: string
+  width?: number
+  height?: number
+  size?: number
+  url: string
+}
+
 export interface InboxMessage {
   id: number
   conv_id: string
@@ -384,6 +439,7 @@ export interface InboxMessage {
   sender_id?: string
   sender_name?: string
   content: string
+  attachments?: InboxAttachment[]
   platform_id?: string
   created_at: string
 }

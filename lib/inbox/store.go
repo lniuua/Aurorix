@@ -3,16 +3,19 @@ package inbox
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/KasumiYuku/Aurorix/lib/message"
 )
 
 // 保留策略。没有任何清理的消息库迟早长到没人敢碰, 所以上限写死在这里而不是留给运维去发现。
 const (
-	maxPerConversation = 500
-	maxAge             = 90 * 24 * time.Hour
+	maxPerConversation = 100
+	maxAge             = 3 * 24 * time.Hour
 	previewRunes       = 60
 	DefaultPageSize    = 50
 	MaxPageSize        = 200
@@ -43,15 +46,16 @@ type Conversation struct {
 
 // Message 是一条入库的消息。方向决定它在页面上靠哪边, sender 只有入站才有意义。
 type Message struct {
-	ID         int64     `json:"id"`
-	ConvID     string    `json:"conv_id"`
-	Kind       Kind      `json:"kind"`
-	Direction  Direction `json:"direction"`
-	SenderID   string    `json:"sender_id,omitempty"`
-	SenderName string    `json:"sender_name,omitempty"`
-	Content    string    `json:"content"`
-	PlatformID string    `json:"platform_id,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID          int64                `json:"id"`
+	ConvID      string               `json:"conv_id"`
+	Kind        Kind                 `json:"kind"`
+	Direction   Direction            `json:"direction"`
+	SenderID    string               `json:"sender_id,omitempty"`
+	SenderName  string               `json:"sender_name,omitempty"`
+	Content     string               `json:"content"`
+	Attachments []message.Attachment `json:"attachments,omitempty"`
+	PlatformID  string               `json:"platform_id,omitempty"`
+	CreatedAt   time.Time            `json:"created_at"`
 }
 
 type Store struct{ db *sql.DB }
@@ -74,6 +78,7 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
 	sender_name     TEXT NOT NULL DEFAULT '',
 	content         TEXT NOT NULL DEFAULT '',
 	platform_msg_id TEXT NOT NULL DEFAULT '',
+	attachments     TEXT NOT NULL DEFAULT '',
 	created_at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS inbox_messages_conv ON inbox_messages(conv_id, id);
@@ -84,8 +89,15 @@ func (s *Store) Ensure() error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("inbox: 没有可用的数据库")
 	}
-	_, err := s.db.Exec(schema)
-	return err
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+	// 老库迁移: 补 attachments 列(已存在则忽略)。
+	if _, err := s.db.Exec(`ALTER TABLE inbox_messages ADD COLUMN attachments TEXT NOT NULL DEFAULT ''`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column") {
+		return err
+	}
+	return nil
 }
 
 // Ready 报告这个 Store 能不能用; 接线处据此决定要不要挂钩子。
@@ -101,6 +113,11 @@ func (s *Store) Save(m Message) error {
 	}
 	at := m.CreatedAt.Unix()
 
+	attachmentsJSON, err := json.Marshal(m.Attachments)
+	if err != nil {
+		return err
+	}
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -108,9 +125,9 @@ func (s *Store) Save(m Message) error {
 	defer tx.Rollback()
 
 	if _, err := tx.Exec(
-		`INSERT INTO inbox_messages (conv_id, direction, sender_id, sender_name, content, platform_msg_id, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		m.ConvID, string(m.Direction), m.SenderID, m.SenderName, m.Content, m.PlatformID, at,
+		`INSERT INTO inbox_messages (conv_id, direction, sender_id, sender_name, content, platform_msg_id, attachments, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ConvID, string(m.Direction), m.SenderID, m.SenderName, m.Content, m.PlatformID, string(attachmentsJSON), at,
 	); err != nil {
 		return err
 	}
@@ -187,7 +204,7 @@ func (s *Store) Messages(convID string, before int64, limit int) ([]Message, err
 	if limit <= 0 || limit > MaxPageSize {
 		limit = DefaultPageSize
 	}
-	query := `SELECT id, conv_id, direction, sender_id, sender_name, content, platform_msg_id, created_at
+	query := `SELECT id, conv_id, direction, sender_id, sender_name, content, platform_msg_id, attachments, created_at
 	          FROM inbox_messages WHERE conv_id = ?`
 	args := []any{convID}
 	if before > 0 {
@@ -208,9 +225,13 @@ func (s *Store) Messages(convID string, before int64, limit int) ([]Message, err
 		var m Message
 		var dir string
 		var at int64
+		var attachmentsRaw string
 		if err := rows.Scan(&m.ID, &m.ConvID, &dir, &m.SenderID, &m.SenderName,
-			&m.Content, &m.PlatformID, &at); err != nil {
+			&m.Content, &m.PlatformID, &attachmentsRaw, &at); err != nil {
 			return nil, err
+		}
+		if attachmentsRaw != "" {
+			_ = json.Unmarshal([]byte(attachmentsRaw), &m.Attachments)
 		}
 		m.Direction = Direction(dir)
 		m.CreatedAt = time.Unix(at, 0)

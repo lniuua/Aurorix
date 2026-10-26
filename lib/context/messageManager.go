@@ -27,6 +27,8 @@ type MessageManager struct {
 	OriginalInput string
 	// NoFooter 为 true 时这条回复不追加框架级底部按钮(指令声明豁免时由框架置上)。
 	NoFooter bool
+	// Sandbox 非空时本上下文发出的消息只进沙盒, 不投递到平台(管理台沙盒用)。
+	Sandbox *message.SandboxSink
 }
 
 // CanReply 表示当前上下文带有平台给的被动回复锚点。
@@ -44,6 +46,7 @@ func (manager *MessageManager) baseStruct() *message.Message {
 		Target:        manager.Target,
 		OriginalInput: manager.OriginalInput,
 		NoFooter:      manager.NoFooter,
+		Sandbox:       manager.Sandbox,
 	}
 	// 降级开关必须每条都开: 一局游戏复用同一个锚点, 只在第一次置它等于后面全关
 	msg.InitRef()

@@ -52,6 +52,9 @@ type AppConfig struct {
 	PProfAddr            string                    `json:"pprof_addr,omitempty"`
 	PluginSettings       map[string]map[string]any `json:"plugin_settings"`
 	PluginAccess         map[string]AccessConfig   `json:"plugin_access"`
+	Access               GlobalAccess              `json:"access,omitempty"`
+	Owners               []string                  `json:"owners,omitempty"`
+	UI                   UIConfig                  `json:"ui,omitempty"`
 	Templates            TemplatesConfig           `json:"templates,omitempty"`
 }
 
@@ -59,12 +62,87 @@ type AccessRule struct {
 	Mode   string   `json:"mode"`
 	Users  []string `json:"users,omitempty"`
 	Groups []string `json:"groups,omitempty"`
+	// Role 覆盖指令声明的角色要求; 空表示沿用声明值。
+	Role string `json:"role,omitempty"`
+}
+
+// GlobalAccess 全局黑白名单: 群与用户各自独立开关, 互不影响。
+type GlobalAccess struct {
+	GroupMode string   `json:"group_mode,omitempty"` // off | whitelist | blacklist
+	UserMode  string   `json:"user_mode,omitempty"`  // off | whitelist | blacklist
+	Groups    []string `json:"groups,omitempty"`
+	Users     []string `json:"users,omitempty"`
+}
+
+func normalizeAccessMode(mode string) string {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		return "off"
+	}
+	return mode
+}
+
+// Allow 按全局访问规则判定是否放行。userIDs 是发送者的全部可匹配标识, 命中其一即算用户匹配。
+// 用户侧先判, 群消息再判群侧, 任一拒绝即拦截。
+// 既没有可匹配用户也没有群的事件(如审核回执等纯系统事件)直接放行, 不参与过滤。
+func (a GlobalAccess) Allow(userIDs []string, groupID string) bool {
+	if !anyNonEmpty(userIDs) && groupID == "" {
+		return true
+	}
+	switch normalizeAccessMode(a.UserMode) {
+	case "whitelist":
+		if !matchAny(a.Users, userIDs) {
+			return false
+		}
+	case "blacklist":
+		if matchAny(a.Users, userIDs) {
+			return false
+		}
+	}
+	if groupID != "" {
+		switch normalizeAccessMode(a.GroupMode) {
+		case "whitelist":
+			if !slices.Contains(a.Groups, groupID) {
+				return false
+			}
+		case "blacklist":
+			if slices.Contains(a.Groups, groupID) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func matchAny(list []string, candidates []string) bool {
+	for _, c := range candidates {
+		if c != "" && slices.Contains(list, c) {
+			return true
+		}
+	}
+	return false
+}
+
+func anyNonEmpty(candidates []string) bool {
+	for _, c := range candidates {
+		if c != "" {
+			return true
+		}
+	}
+	return false
 }
 
 type AccessConfig struct {
 	Default  AccessRule            `json:"default"`
 	Commands map[string]AccessRule `json:"commands,omitempty"`
 	Disabled bool                  `json:"disabled,omitempty"`
+}
+
+// UIConfig 管理台外观配置。
+type UIConfig struct {
+	Logo              string `json:"logo,omitempty"`               // 登录页与侧边栏 Logo 图 URL，留空用默认字标
+	Background        string `json:"background,omitempty"`         // 全屏背景图 URL，留空关闭
+	BackgroundOpacity int    `json:"background_opacity,omitempty"` // 1-100，0 视为默认 30
 }
 
 type TemplatesConfig struct {
@@ -101,6 +179,13 @@ func Current() AppConfig {
 	configLock.Lock()
 	defer configLock.Unlock()
 	return current
+}
+
+// OwnerList 返回配置里的主人名单(只读)。角色判定每条消息都会读一次。
+func OwnerList() []string {
+	configLock.Lock()
+	defer configLock.Unlock()
+	return current.Owners
 }
 
 func normalize(cfg *AppConfig) {
@@ -156,6 +241,10 @@ func normalize(cfg *AppConfig) {
 	if cfg.Templates.ReloadSeconds <= 0 {
 		cfg.Templates.ReloadSeconds = templates.DefaultReloadSeconds
 	}
+	if cfg.UI.BackgroundOpacity < 1 || cfg.UI.BackgroundOpacity > 100 {
+		cfg.UI.BackgroundOpacity = 0
+	}
+	cfg.Owners = cleanStrings(cfg.Owners)
 }
 
 func persist(mutate func(cfg *AppConfig) error, keys ...string) error {
@@ -330,6 +419,38 @@ func applyCoreKey(cfg *AppConfig, key string, rawValue json.RawMessage) error {
 			return fmt.Errorf("intents: %w", err)
 		}
 		cfg.Intents = cleanStrings(v)
+	case "owners":
+		var v []string
+		if err := json.Unmarshal(rawValue, &v); err != nil {
+			return fmt.Errorf("owners: %w", err)
+		}
+		cfg.Owners = cleanStrings(v)
+	case "access":
+		var v GlobalAccess
+		if err := json.Unmarshal(rawValue, &v); err != nil {
+			return fmt.Errorf("access: %w", err)
+		}
+		for _, mode := range []string{v.GroupMode, v.UserMode} {
+			if m := normalizeAccessMode(mode); m != "off" && m != "whitelist" && m != "blacklist" {
+				return fmt.Errorf("access 的 group_mode/user_mode 只能为 off、whitelist 或 blacklist")
+			}
+		}
+		v.GroupMode = normalizeAccessMode(v.GroupMode)
+		v.UserMode = normalizeAccessMode(v.UserMode)
+		v.Users = cleanStrings(v.Users)
+		v.Groups = cleanStrings(v.Groups)
+		cfg.Access = v
+	case "ui":
+		var v UIConfig
+		if err := json.Unmarshal(rawValue, &v); err != nil {
+			return fmt.Errorf("ui: %w", err)
+		}
+		v.Logo = strings.TrimSpace(v.Logo)
+		v.Background = strings.TrimSpace(v.Background)
+		if v.BackgroundOpacity < 0 || v.BackgroundOpacity > 100 {
+			return fmt.Errorf("ui.background_opacity 需在 0..100 之间")
+		}
+		cfg.UI = v
 	case "global_markdown":
 		var v bool
 		if err := json.Unmarshal(rawValue, &v); err != nil {

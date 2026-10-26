@@ -68,5 +68,5 @@ func registerPluginRoutes(api *http.ServeMux) {
 }
 
 func toConfigAccessRule(rule plugin.AccessRule) config.AccessRule {
-	return config.AccessRule{Mode: rule.Mode, Users: rule.Users, Groups: rule.Groups}
+	return config.AccessRule{Mode: rule.Mode, Users: rule.Users, Groups: rule.Groups, Role: rule.Role}
 }

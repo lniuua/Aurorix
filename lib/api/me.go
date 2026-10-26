@@ -15,6 +15,8 @@ type BotProfile struct {
 	UnionUserAccount string `json:"union_user_account"`
 	ShareURL         string `json:"share_url"`
 	WelcomeMsg       string `json:"welcome_msg"`
+	// AppID 来自本地配置, 不在 /users/@me 响应里, 由 GetMe 顺手带上。
+	AppID string `json:"appid"`
 }
 
 // IsZero 档案为空时为 true, 表示未拉取到。
@@ -39,5 +41,6 @@ func (m *MeAPI) GetMe() (*BotProfile, error) {
 	if result.IsZero() {
 		return nil, fmt.Errorf("bot profile is empty")
 	}
+	result.AppID = m.api.AppID
 	return &result, nil
 }

@@ -182,7 +182,7 @@ func (w *conn) onDispatch(f frame) {
 		w.c.setOnline(true)
 		w.c.markReady()
 		w.startHeartbeat()
-		logger.Infof("连接就绪, session=%s bot=%s(%s)", ready.SessionID, ready.User.Username, ready.User.ID)
+		logger.Infof("连接就绪, session=%s bot=%s(appid=%s)", ready.SessionID, ready.User.Username, w.c.api.AppID)
 	case "RESUMED":
 		w.c.setOnline(true)
 		w.c.markReady()

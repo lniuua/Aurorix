@@ -5,7 +5,9 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button, Spinner, cn } from '@aurorix/webui'
 import { get, post, withQuery } from '../lib/api'
+import { ZoomImage } from '../components/lightbox'
 import { qk } from '../lib/query'
+import { useOverview } from '../components/layout'
 import type { InboxConversation, InboxMessage, InboxMessagesView } from '../lib/types'
 
 const PAGE = 50
@@ -25,6 +27,18 @@ function clock(iso: string): string {
   return at.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
+/** 用户头像: 用机器人 appid + 用户 openid 拼接 QQ 头像地址。 */
+function userAvatar(appid: string, openid?: string): string {
+  if (!appid || !openid) return ''
+  return `https://thirdqq.qlogo.cn/qqapp/${appid}/${openid}/100`
+}
+
+/** 会话头像: 私聊用用户头像; 群拿不到头像 URL(只有 group_openid), 返回空串走占位。 */
+function convAvatar(conv: InboxConversation, appid: string): string {
+  if (conv.kind !== 'c2c') return ''
+  return userAvatar(appid, conv.id)
+}
+
 /** QQ 的 markdown 带平台私有标签, 直接喂给渲染器会整段丢掉, 先把它们翻成人能看的文字。 */
 function normalizeQQMarkdown(raw: string): string {
   return raw
@@ -39,7 +53,7 @@ function normalizeQQMarkdown(raw: string): string {
 
 const mdComponents = {
   img: (props: { src?: string; alt?: string }) => (
-    <img src={props.src} alt={props.alt ?? ''} className="my-1 max-h-72 rounded-xl object-contain" />
+    <ZoomImage src={props.src} alt={props.alt} className="my-1 max-h-72 rounded-xl object-contain" />
   ),
   a: (props: { href?: string; children?: React.ReactNode }) => (
     <a href={props.href} target="_blank" rel="noreferrer" className="text-accent-text underline">
@@ -66,23 +80,39 @@ const mdComponents = {
   ),
 }
 
-function Bubble({ msg, group }: { msg: InboxMessage; group: boolean }) {
+function Bubble({ msg, appid, botAvatar }: { msg: InboxMessage; appid: string; botAvatar: string }) {
   const mine = msg.direction === 'out'
+  const avatar = mine ? botAvatar : userAvatar(appid, msg.sender_id)
+  const images = (msg.attachments ?? []).filter((a) => a.content_type?.startsWith('image/'))
   return (
-    <div className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}>
-      <div className="flex items-center gap-2 px-1 text-[11px] text-ink-faint">
-        <span className="max-w-[180px] truncate">{mine ? '机器人' : group ? senderLabel(msg) : ''}</span>
-        <span>{clock(msg.created_at)}</span>
-      </div>
-      <div
-        className={cn(
-          'max-w-[min(680px,85%)] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed',
-          mine ? 'bg-accent-soft text-ink' : 'bg-surface text-ink',
-        )}
-      >
-        <Markdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-          {normalizeQQMarkdown(msg.content)}
-        </Markdown>
+    <div className={cn('flex items-start gap-2', mine && 'flex-row-reverse')}>
+      {avatar ? (
+        <img src={avatar} alt="" referrerPolicy="no-referrer" className="-mt-2 size-8 shrink-0 rounded-full border border-line object-cover" />
+      ) : (
+        <span className="-mt-2 size-8 shrink-0 rounded-full border border-line bg-subtle" />
+      )}
+      <div className={cn('flex max-w-[min(680px,85%)] flex-col gap-1', mine ? 'items-end' : 'items-start')}>
+        <div className="flex items-center gap-2 px-1 text-[11px] text-ink-faint">
+          <span className="max-w-[180px] truncate">{mine ? '机器人' : senderLabel(msg)}</span>
+          <span>{clock(msg.created_at)}</span>
+        </div>
+        <div
+          className={cn(
+            'rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed',
+            mine ? 'bg-accent-soft text-ink' : 'bg-surface text-ink',
+          )}
+        >
+          <Markdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+            {normalizeQQMarkdown(msg.content)}
+          </Markdown>
+          {images.length > 0 && (
+            <div className="mt-2 flex flex-col gap-2">
+              {images.map((a) => (
+                <ZoomImage key={a.url} src={a.url} className="max-h-56 max-w-full rounded-xl object-contain" />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -99,6 +129,9 @@ export default function MessagesPage() {
   const [error, setError] = useState('')
   const scroller = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+  const { data: overview } = useOverview()
+  const appid = overview?.profile?.appid ?? ''
+  const botAvatar = overview?.profile?.avatar ?? ''
 
   const conversations = useQuery({
     queryKey: qk.inboxConversations,
@@ -195,8 +228,6 @@ export default function MessagesPage() {
     send.mutate(text)
   }
 
-  const group = (activeConv?.kind ?? 'c2c') === 'group'
-
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col p-4 md:p-6">
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-line bg-background">
@@ -232,20 +263,31 @@ export default function MessagesPage() {
                   type="button"
                   onClick={() => setParams({ conv: conv.id })}
                   className={cn(
-                    'flex w-full flex-col gap-1 border-b border-line/60 px-3 py-2.5 text-left transition hover:bg-subtle',
+                    'flex w-full items-center gap-2.5 border-b border-line/60 px-3 py-2.5 text-left transition hover:bg-subtle',
                     conv.id === active && 'bg-accent-soft',
                   )}
                 >
-                  <span className="flex items-center gap-1.5">
-                    <span className="rounded bg-subtle px-1 py-0.5 text-[10px] text-ink-faint">
-                      {conv.kind === 'group' ? '群' : '私聊'}
+                  {conv.kind === 'group' ? (
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-subtle text-[13px] text-ink-soft">
+                      群
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-                      {displayName(conv)}
+                  ) : convAvatar(conv, appid) ? (
+                    <img
+                      src={convAvatar(conv, appid)}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="size-10 shrink-0 rounded-full border border-line object-cover"
+                    />
+                  ) : (
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-subtle text-[13px] text-ink-soft">
+                      聊
                     </span>
-                  </span>
-                  <span className="truncate text-[11px] text-ink-faint">
-                    {conv.last_preview || '还没有消息'}
+                  )}
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="truncate text-[13px] font-medium">{displayName(conv)}</span>
+                    <span className="truncate text-[11px] text-ink-faint">
+                      {conv.last_preview || '还没有消息'}
+                    </span>
                   </span>
                 </button>
               ))
@@ -299,7 +341,9 @@ export default function MessagesPage() {
                 ) : all.length === 0 ? (
                   <p className="m-auto text-[12px] text-ink-faint">这里还没有消息</p>
                 ) : (
-                  all.map((msg) => <Bubble key={msg.id} msg={msg} group={group} />)
+                  all.map((msg) => (
+                    <Bubble key={msg.id} msg={msg} appid={appid} botAvatar={botAvatar} />
+                  ))
                 )}
               </div>
 
